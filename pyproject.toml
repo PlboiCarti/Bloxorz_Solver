@@ -1,0 +1,22 @@
+[project]
+name = "bloxorz-solver"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "cheemsHCMUS", email = "24120306@student.hcmus.edu.vn" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+bloxorz-solver = "bloxorz_solver:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
