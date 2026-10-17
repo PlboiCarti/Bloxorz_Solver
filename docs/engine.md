@@ -20,3 +20,11 @@
 - Level JSON schema (Section 4.4) is confirmed; advanced tiles are parsed but treated as plain floor by the core (confirmed, loader does not reject them).
 - `BridgeStates` and `step_cost = 1.0` are confirmed temporary placeholders: TV2 finalizes `bridge_states`, the team finalizes the UCS/A\* cost function.
 - Cross-stream dependencies (TV2/TV3/TV4/TV5) are summarized in `docs/api.md` Section 6.7.
+- `BridgeStates` được TV2 chốt biểu diễn là `tuple[bool, ...]`, phần tử thứ i ứng với cầu thứ i trong danh sách `bridges` của màn chơi (`True` là mở, `False` là đóng).
+- Ô `FRAGILE` (`F`) chỉ làm rơi khối khi khối nguyên vẹn đứng thẳng (`STANDING`); khối nằm hoặc khối lập phương $1\times1\times1$ được nâng đỡ an toàn.
+- Ô `BRIDGE` (`B`) chỉ nâng đỡ khối khi cầu đang mở (`True`); cầu đóng hoạt động tương tự ô `VOID`.
+- Công tắc `soft` (`o`) kích hoạt khi bất kỳ phần nào của khối đè lên; công tắc `heavy` (`x`) và `split` (`P`) chỉ kích hoạt khi khối nguyên vẹn đứng thẳng.
+- Các chế độ cầu gồm `toggle`, `permanent_open`, `permanent_closed` được cập nhật thuần túy vào `bridge_states`.
+- Khi giẫm lên công tắc `split` (`P`), khối tách thành hai khối $1\times1\times1$ tại `split_cells`, điều khiển cube1; `SWITCH_CUBE` chuyển đổi khối điều khiển.
+- Hai khối lập phương $1\times1\times1$ khi di chuyển đến 2 ô kề nhau sẽ tự động hợp nhất (`merge`) thành khối $1\times1\times2$ (`HORIZONTAL` hoặc `VERTICAL`).
+- TV2 hoàn thiện và kiểm thử giải thành công toàn bộ 9 màn chơi từ `levels/level2.json` đến `levels/level10.json`.

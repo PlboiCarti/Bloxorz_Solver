@@ -200,11 +200,11 @@ class SearchResult:
 
 Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirmed placeholder with future work required (owner noted).
 
-### 6.1 `bridge_states` Representation (`TEMPORARY — owner: TV2`)
+### 6.1 `bridge_states` Representation (`CONFIRMED`)
 
-- `BridgeStates = tuple[bool, ...]` is a provisional alias in `game/state.py`; kept as-is until TV2 implements bridges.
-- TV2 finalizes the indexing/representation and updates this section plus `docs/engine.md` when it does.
-- Until then, all other streams treat `State.bridge_states` as an opaque hashable tuple (`()` in core) — do not inspect its contents outside TV2 code.
+- `BridgeStates = tuple[bool, ...]` in `game/state.py`.
+- Phần tử thứ $i$ tương ứng với cầu thứ $i$ theo thứ tự danh sách `bridges` trong file JSON của màn chơi (`True` = mở/đi được, `False` = đóng/như void). Nếu màn chơi không có cầu thì là `()`.
+- Hashing và equality của State được bảo toàn tuyệt đối, tương thích serialization `to_dict` / `from_dict`.
 
 ### 6.2 Cost Function (`TEMPORARY — owner: team, consumed by TV4`)
 
@@ -218,32 +218,34 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 - TV2 owns the other level files; every level must use this schema so it stays reusable across all solvers.
 - If the schema ever changes, the loader, this doc, and `docs/engine.md` change together.
 
-### 6.4 Advanced-Tile Behavior in Core (`CONFIRMED`)
+### 6.4 Advanced-Tile Behavior in Engine (`CONFIRMED`)
 
-- TV1 parses `FRAGILE`, `BRIDGE` and switch tiles but treats them as plain floor; only `VOID` and off-board cells block a move (the loader does not reject advanced tiles).
-- TV2 replaces this behavior behind the hooks in 6.5 without changing the public Engine API.
+- Implemented by TV2 in `game/tiles.py`, `game/switches.py`, `game/split_block.py` and hooked into `Engine`.
+- Ô `FRAGILE`: vỡ khi khối đứng thẳng; nâng đỡ khi khối nằm hoặc khối 1x1.
+- Ô `BRIDGE`: chỉ nâng đỡ khi mở.
+- Công tắc `soft`, `heavy`, `split`: kích hoạt và cập nhật trạng thái cầu / tách khối.
 
-### 6.5 TV2 Extension Hooks in `Engine`
+### 6.5 TV2 Extension Hooks in `Engine` (`CONFIRMED — IMPLEMENTED`)
 
-TV1 provides modular extension methods within `Engine` so TV2 can integrate advanced tile logic without altering the public API:
+TV2 đã tích hợp toàn bộ logic cơ chế nâng cao vào `Engine` mà không làm thay đổi public API:
 
 - `_roll(state, action) -> tuple[Cell, Orientation] | None`: Pure geometry roll table.
-- `_cells_supported(state, cells) -> bool`: Checks boundary and floor support (`# TODO(TV2)` for fragile/bridge).
-- `_apply_tile_effects(state, new_state) -> State`: Applies switches, bridges, and split/merge effects (`# TODO(TV2)`; core returns `new_state` unchanged).
+- `_cells_supported(state, cells) -> bool`: Kiểm tra ô trong bảng, không phải VOID, không phải fragile bị vỡ, và cầu đang mở.
+- `_apply_tile_effects(state, new_state) -> State`: Áp dụng hiệu ứng công tắc, chuyển đổi trạng thái cầu, xử lý split switch và tự động merge.
 
-The split-mode/`SWITCH_CUBE` early exits in `transition` also carry `# TODO(TV2)` markers in `game/engine.py`.
+Logic split-mode và `SWITCH_CUBE` đã được TV2 hoàn thiện trực tiếp trong `transition`.
 
 ### 6.6 Core Rule Notes
 
 - `legal_actions` checks `transition` for each action in the fixed order `UP, DOWN, LEFT, RIGHT, SWITCH_CUBE` and returns those that are not `None`.
-- `SWITCH_CUBE` always returns `None` in TV1 (`split_mode == False`).
-- TV1 treats `FRAGILE`, `BRIDGE`, and switch tiles as plain floor; only `VOID` and off-board cells block a move.
+- `SWITCH_CUBE` chỉ hợp lệ khi `split_mode == True`.
+- Cơ chế nâng cao: `FRAGILE`, `BRIDGE`, switches (`soft`, `heavy`, `split`) đã được kích hoạt đầy đủ.
 
 ### 6.7 Stream Dependency Summary
 
-| Stream                   | Can rely on now                                                                                | Must wait for                                        |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| TV2 (advanced mechanics) | Public Engine API, hooks (6.5), parsed `bridges`/`switches` on `Board`, `BridgeStates` alias   | Final `bridge_states` representation (6.1, TV2 owns) |
-| TV3 (BFS/DFS)            | Full Engine API, `step_cost == 1.0`, level schema (6.3)                                        | —                                                    |
-| TV4 (UCS/A\*)            | Full Engine API, level schema (6.3)                                                            | Final cost function (6.2)                            |
-| TV5 (GUI/integration)    | `State.to_dict` shape, `engine.board`, level schema (6.3), `SearchResult` contract (Section 5) | Solver outputs and final cost values                 |
+| Stream                   | Can rely on now                                                                                | Must wait for                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| TV2 (advanced mechanics) | Full Engine API, advanced mechanics, levels 1–10 completed                                    | —                                    |
+| TV3 (BFS/DFS)            | Full Engine API (core + advanced), `step_cost == 1.0`, levels 1–10                             | —                                    |
+| TV4 (UCS/A\*)            | Full Engine API (core + advanced), levels 1–10                                                 | Final cost function (6.2)            |
+| TV5 (GUI/integration)    | `State.to_dict` shape, `engine.board`, levels 1–10, `SearchResult` contract (Section 5)        | Solver outputs and final cost values |
