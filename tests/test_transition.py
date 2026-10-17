@@ -6,6 +6,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from game.actions import Orientation
+from game.board import Board, TileType, load_board, parse_board
 from game.state import State, occupied_cells
 
 # --- State ---
@@ -100,3 +101,120 @@ def test_state_split_fields_roundtrip():
     assert json.dumps(d)
     restored = State.from_dict(d)
     assert restored == s_split
+
+
+# --- Board and Level Loader ---
+
+
+def test_parse_valid_grid():
+    """Kiểm tra parse_board nạp đúng kích thước, ô xuất phát, ô đích và các loại ô."""
+    data = {
+        "name": "sample",
+        "grid": [
+            "S#.",
+            "FBo",
+            "xPG",
+        ],
+        "bridges": [{"id": "B1"}],
+        "switches": [{"type": "soft"}],
+    }
+    board = parse_board(data)
+    assert isinstance(board, Board)
+    assert board.name == "sample"
+    assert board.rows == 3
+    assert board.cols == 3
+    assert board.start == (0, 0)
+    assert board.goal == (2, 2)
+
+    assert board.tile_at((0, 0)) == TileType.FLOOR
+    assert board.tile_at((0, 1)) == TileType.FLOOR
+    assert board.tile_at((0, 2)) == TileType.VOID
+    assert board.tile_at((1, 0)) == TileType.FRAGILE
+    assert board.tile_at((1, 1)) == TileType.BRIDGE
+    assert board.tile_at((1, 2)) == TileType.SOFT_SWITCH
+    assert board.tile_at((2, 0)) == TileType.HEAVY_SWITCH
+    assert board.tile_at((2, 1)) == TileType.SPLIT_SWITCH
+    assert board.tile_at((2, 2)) == TileType.GOAL
+
+    assert len(board.bridges) == 1
+    assert len(board.switches) == 1
+
+
+def test_parse_board_rejections():
+    """Kiểm tra parse_board từ chối các bản đồ không hợp lệ."""
+    # Thiếu hoặc rỗng grid
+    with pytest.raises(ValueError, match="không được rỗng|thiếu"):
+        parse_board({"grid": []})
+
+    with pytest.raises(ValueError, match="thiếu"):
+        parse_board({})
+
+    # Hàng không đều (ragged)
+    with pytest.raises(ValueError, match="hình chữ nhật"):
+        parse_board({"grid": ["S#", "G"]})
+
+    # Hàng có độ dài 0
+    with pytest.raises(ValueError, match="độ dài bằng 0"):
+        parse_board({"grid": [""]})
+
+    # Ký tự lạ
+    with pytest.raises(ValueError, match="Ký tự không hợp lệ"):
+        parse_board({"grid": ["S#", "G?"]})
+
+    # Không có hoặc nhiều hơn 1 ô S
+    with pytest.raises(ValueError, match="chính xác một ô xuất phát"):
+        parse_board({"grid": ["##", "G#"]})
+    with pytest.raises(ValueError, match="chính xác một ô xuất phát"):
+        parse_board({"grid": ["SS", "G#"]})
+
+    # Không có hoặc nhiều hơn 1 ô G
+    with pytest.raises(ValueError, match="chính xác một ô đích"):
+        parse_board({"grid": ["S#", "##"]})
+    with pytest.raises(ValueError, match="chính xác một ô đích"):
+        parse_board({"grid": ["SG", "#G"]})
+
+    # bridges hoặc switches không phải là list
+    with pytest.raises(TypeError, match="bridges"):
+        parse_board({"grid": ["SG"], "bridges": "not-a-list"})
+    with pytest.raises(TypeError, match="switches"):
+        parse_board({"grid": ["SG"], "switches": "not-a-list"})
+
+
+def test_load_board_level1():
+    """Kiểm tra load_board nạp thành công file levels/level1.json."""
+    board = load_board("levels/level1.json")
+    assert board.name == "level1"
+    assert board.rows == 5
+    assert board.cols == 10
+    assert board.start == (1, 3)
+    assert board.goal == (4, 6)
+
+    # Kiểm tra một số ô đại diện
+    assert board.tile_at((1, 3)) == TileType.FLOOR
+    assert board.tile_at((4, 6)) == TileType.GOAL
+    assert board.tile_at((0, 0)) == TileType.VOID
+    assert board.tile_at((2, 0)) == TileType.FLOOR
+
+
+def test_board_in_bounds_and_edges():
+    """Kiểm tra hàm in_bounds tại 4 góc, các cạnh và ngoài biên."""
+    board = load_board("levels/level1.json")
+
+    # Các ô hợp lệ ở 4 góc
+    assert board.in_bounds((0, 0)) is True
+    assert board.in_bounds((0, board.cols - 1)) is True
+    assert board.in_bounds((board.rows - 1, 0)) is True
+    assert board.in_bounds((board.rows - 1, board.cols - 1)) is True
+
+    # Ngoài biên ở cả 4 phía
+    assert board.in_bounds((-1, 0)) is False
+    assert board.in_bounds((0, -1)) is False
+    assert board.in_bounds((board.rows, 0)) is False
+    assert board.in_bounds((0, board.cols)) is False
+
+    # Truy vấn tile_at ngoài biên ném IndexError
+    with pytest.raises(IndexError):
+        board.tile_at((-1, 0))
+    with pytest.raises(IndexError):
+        board.tile_at((board.rows, board.cols))
+
