@@ -9,7 +9,7 @@
 
 1. **GUI Purity & Single Source of Truth:**
    - The GUI never computes block movement physics, collision, or game rules directly.
-   - Every movement, switch trigger, bridge toggle, split/merge, or win/loss condition **must** be evaluated exclusively through `Engine.transition()` and `Engine.is_goal()`.
+   - Every movement, switch trigger, bridge toggle, split/merge, or win/loss condition **must** be evaluated exclusively through `Engine.transition()` and goal validation.
 2. **Solver Decoupling:**
    - The GUI does not implement search algorithms. It triggers solvers via a standardized invocation contract and visualizes the resulting `SearchResult`.
 3. **Non-blocking Search Execution:**
@@ -22,6 +22,8 @@
 ## 2. Directory Structure & Module Boundaries
 
 ```text
+game/                   # Python engine (owned by TV1/TV2)
+solvers/                # AI solvers (owned by TV3/TV4)
 web/
 ├── index.html
 └── src/
@@ -34,6 +36,7 @@ server.py               # FastAPI backend at repo root (owned by TV1/TV2)
 levels/                 # shared level JSON files
 ```
 
+`gui/` (Python placeholder) is removed; replaced by `web/`.  
 GUI is owned by TV5 and written in JavaScript (Three.js). Algorithms and the engine remain in Python. The two sides communicate only through the HTTP endpoints in §2.1.
 
 ### 2.1 Backend HTTP API
@@ -41,11 +44,26 @@ GUI is owned by TV5 and written in JavaScript (Three.js). Algorithms and the eng
 | Method | Path | Body | Response |
 | :--- | :--- | :--- | :--- |
 | GET | /levels | — | `["level1.json", ...]` |
-| GET | /levels/{name} | — | Board JSON + `initial_state` (State.to_dict format) |
-| POST | /transition | `{level, state, action}` | TransitionResult JSON (see E3) |
+| GET | /levels/{name} | — | Board JSON + `initial_state` (State.to_dict format with `occupied_cells`) |
+| POST | /transition | `{level, state, action}` | TransitionResult JSON (see §3.3) |
 | POST | /solve | `{level, algorithm, state}` where algorithm ∈ {"BFS","DFS","UCS","ASTAR"} | SearchResult JSON (see §4.2) |
 
+**Action Encoding:**  
+`action` is one of the strings `"UP" | "DOWN" | "LEFT" | "RIGHT" | "SWITCH_CUBE"`. This encoding is shared across `POST /transition` (input), `POST /solve` (output path array), and client-side replay.
+
 Every move is validated by POST /transition. The GUI never computes movement locally.
+
+#### Board JSON Schema
+```json
+{
+  "rows": int,
+  "cols": int,
+  "tiles": [[char]],
+  "start": [row, col],
+  "goal": [row, col]
+}
+```
+bridges and switches: see owner spec (pending).
 
 ---
 
@@ -69,15 +87,27 @@ initial_state: State = engine.get_initial_state()
 - **`board.start`**, **`board.goal`**: Coordinates of the start cell and target goal hole.
 - **`board.bridges`**, **`board.switches`**: Raw metadata tuples defining bridge and switch connections.
 
+#### Board JSON Schema
+```json
+{
+  "rows": int,
+  "cols": int,
+  "tiles": [[char]],
+  "start": [row, col],
+  "goal": [row, col]
+}
+```
+bridges and switches: see owner spec (pending).
+
 ### 3.2 State Data & Geometry Inspection
 
-The GUI uses `State` properties and helper functions to render the block and interactive elements:
+The GUI uses `State` properties and helper functions to render the block and interactive elements. The GUI must not call `occupied_cells` directly; it reads the precomputed `occupied_cells` field from the JSON:
 
 | State Property | Type | GUI Usage |
 | :--- | :--- | :--- |
 | `state.block_position` | `tuple[int, int]` | Anchor cell `(row, col)` (top-left occupied cell of block) |
 | `state.orientation` | `Orientation` | `STANDING`, `HORIZONTAL` (along col), or `VERTICAL` (along row) |
-| `occupied_cells(state)` | `tuple[Cell, ...]` | List of cells currently covered by the block (1 cell if standing, 2 if lying) |
+| `occupied_cells` | `list[tuple[int, int]]` | read from JSON field (cells covered by the block) |
 | `state.split_mode` | `bool` | `True` when block is split into two $1\times1\times1$ cubes |
 | `state.cube1_position` | `Cell \| None` | Position of Cube 1 (when `split_mode == True`) |
 | `state.cube2_position` | `Cell \| None` | Position of Cube 2 (when `split_mode == True`) |
@@ -90,6 +120,7 @@ For web-based or Three.js renderers, `state.to_dict()` provides JSON-serializabl
 {
   "block_position": [3, 4],
   "orientation": "STANDING",
+  "occupied_cells": [[3, 4]],
   "bridge_states": [],
   "split_mode": false,
   "cube1_position": null,
@@ -114,7 +145,7 @@ class TransitionStatus(str, Enum):
 class TransitionResult:
     status: TransitionStatus
     state: State | None        # set only when status == OK
-    is_goal: bool              # engine.is_goal(state) when status == OK, else False
+    isGoal: bool               # goal check when status == OK, else False
     reason: str | None = None  # FALL: "void" | "off_board" | "fragile_standing"
                                # ILLEGAL: "switch_cube_not_split" | "action_not_allowed"
 ```
@@ -123,15 +154,23 @@ class TransitionResult:
 ```json
 {
   "status": "ok",
-  "state": { "...State.to_dict()..." },
-  "is_goal": false,
+  "state": {
+    "block_position": [3, 4],
+    "orientation": "STANDING",
+    "occupied_cells": [[3, 4]],
+    "bridge_states": [],
+    "split_mode": false,
+    "cube1_position": null,
+    "cube2_position": null,
+    "active_cube": null
+  },
   "isGoal": false,
   "reason": null
 }
 ```
 
 #### User Action Processing
-1. `status == "ok"` → `current_state = result.state`; animate roll; if `is_goal` (or `isGoal`) → trigger win.
+1. `status == "ok"` → `current_state = result.state`; animate roll; if `result.isGoal` → trigger win.
 2. `status == "fall"` → play fall animation; show restart/undo prompt.
 3. `status == "illegal"` → do NOT animate a fall; play a short "blocked" feedback (shake or flash); keep `current_state`.
 
@@ -155,6 +194,7 @@ def step_cost(self, state: State, action: Action) -> float: ...
 **Notes:**
 - Default is uniform cost `1.0`. Costs may be re-weighted later; the interface does not change.
 - `SearchResult.total_cost` = sum of `step_cost` over path. With uniform costs it equals `solution_length`.
+- `step_cost` is called only for legal moves; solvers must check legality first.
 - <!-- TODO: team to confirm cost table; ML weighting optional -->
 
 **Solver Rules:**
@@ -234,6 +274,7 @@ Manages the gameplay state machine, user inputs, and replay coordination.
 - `"REPLAY_PAUSED"`: Replay paused; user can manually step forward/backward.
 - `"WON"`: Block has reached goal; victory banner displayed.
 - `"LOST"`: Block fell; defeat message displayed with restart option.
+- `"ERROR"`: Replay or transition failed; message shown.
 
 #### Key Controller Methods:
 ```javascript
@@ -265,6 +306,18 @@ export class Renderer3D {
     renderBlock(state) { ... }
     renderFallAnimation(state, action) { ... }
     renderVictoryAnimation() { ... }
+}
+```
+
+### 5.3 UI Components (`web/src/ui.js`)
+
+Handles the control panel, replay bar, metrics display, and status notifications.
+
+```javascript
+// web/src/ui.js
+export class UI {
+    constructor() { ... }
+    showMessage(message) { ... }
     renderMetrics(result) { ... }
 }
 ```
@@ -281,10 +334,11 @@ export class Renderer3D {
 | `ArrowDown` / `S` | `Action.DOWN` | Roll block Down |
 | `ArrowLeft` / `A` | `Action.LEFT` | Roll block Left |
 | `ArrowRight` / `D` | `Action.RIGHT` | Roll block Right |
-| `Space` | `Action.SWITCH_CUBE` | Switch active cube (Split Mode only) |
+| `Space` | Multi-mode | `SWITCH_CUBE` in `MANUAL_PLAY` when split; Play/Pause in `REPLAYING` or `REPLAY_PAUSED` |
 | `R` | Restart | Reset stage to initial state |
 | `U` / `Backspace` | Undo | Undo last move |
-| `Space` (in replay) | Play / Pause | Toggle solution playback |
+
+*Note: API name `ASTAR` maps to display label `A*`.*
 
 ### 6.2 UI Control Panel Buttons
 
@@ -321,7 +375,7 @@ async function playSolutionStep() {
     replayIndex++;
 
     renderer.renderBlock(currentState);
-    if (result.isGoal || result.is_goal) {
+    if (result.isGoal) {
         mode = "WON";
     }
 }
@@ -333,7 +387,7 @@ async function playSolutionStep() {
 
 TV5 should verify GUI integration against:
 1. `levels/level1.json` with manual keyboard navigation.
-2. POST /solve with algorithm BFS on `level1.json` (invoking backend `solve_bfs`) and verifying that the replayed path ends with `engine.is_goal(final_state) == True`.
+2. POST /solve with algorithm BFS on `level1.json` (invoking backend `solve_bfs`) and verifying that the replayed path reaches the goal state.
 3. Fall animation trigger when rolling into `VOID`.
 4. Split block control when level with split switches (`P`) is introduced.
 
@@ -353,3 +407,4 @@ TV5 should verify GUI integration against:
 ## Changelog
 
 - v1 (2026-10-17): Switched GUI to Three.js web frontend; added HTTP API (§2.1); replaced transition() return type with TransitionResult (E3); added move cost and admissible heuristic rules (§3.4); algorithms BFS/DFS/UCS/A*.
+- v2: fixes F1–F9 (isGoal, Action encoding, Board JSON, occupied_cells, renderMetrics location, ERROR mode, tree, Space binding, step_cost note).
