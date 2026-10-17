@@ -1,7 +1,7 @@
 [project]
 name = "bloxorz-solver"
 version = "0.1.0"
-description = "Add your description here"
+description = "Bloxorz AI solver"
 readme = "README.md"
 authors = [
     { name = "cheemsHCMUS", email = "24120306@student.hcmus.edu.vn" }
@@ -9,14 +9,25 @@ authors = [
 requires-python = ">=3.12"
 dependencies = []
 
-[project.scripts]
-bloxorz-solver = "bloxorz_solver:main"
-
-[build-system]
-requires = ["uv_build>=0.12.23,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "ruff>=0.17.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["game", "tests"]
+
