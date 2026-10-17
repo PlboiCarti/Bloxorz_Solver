@@ -1,7 +1,7 @@
 # Bloxorz GUI & Integration — API Contract & Architecture Specifications
 
 > **Target Audience:** TV5 (GUI & Integration), TV1/TV2 (Core & Advanced Engine), TV3/TV4 (AI Solvers).  
-> **Status:** Approved Interface Contract for GUI implementation.
+> **Status:** Draft v1 — pending review by TV5 and TV1/TV2.
 
 ---
 
@@ -21,40 +21,41 @@
 
 ## 2. Directory Structure & Module Boundaries
 
-The `gui` package lives at the top level of the repository:
-
 ```text
-gui/
-├── __init__.py      # Package export
-├── app.py           # Application entrypoint & window / layout management
-├── controller.py    # State machine, user input handling, replay logic
-└── renderer.py      # Rendering engine (2D/3D viewport, board tiles, block meshes)
+web/
+├── index.html
+└── src/
+    ├── main.js         # entrypoint: wires UI, controller, renderer
+    ├── controller.js   # state machine (modes), replay logic, keyboard input
+    ├── renderer3d.js   # Three.js scene: board tiles, block mesh, bridges, switches
+    ├── api.js          # HTTP client for the Python backend
+    └── ui.js           # control panel, replay bar, metrics panel
+server.py               # FastAPI backend at repo root (owned by TV1/TV2)
+levels/                 # shared level JSON files
 ```
 
-- **`gui/`** is owned exclusively by **TV5**.
-- `main.py` at the repo root serves as the program launcher that initializes and starts `gui.app`.
+GUI is owned by TV5 and written in JavaScript (Three.js). Algorithms and the engine remain in Python. The two sides communicate only through the HTTP endpoints in §2.1.
+
+### 2.1 Backend HTTP API
+
+| Method | Path | Body | Response |
+| :--- | :--- | :--- | :--- |
+| GET | /levels | — | `["level1.json", ...]` |
+| GET | /levels/{name} | — | Board JSON + `initial_state` (State.to_dict format) |
+| POST | /transition | `{level, state, action}` | TransitionResult JSON (see E3) |
+| POST | /solve | `{level, algorithm, state}` where algorithm ∈ {"BFS","DFS","UCS","ASTAR"} | SearchResult JSON (see §4.2) |
+
+Every move is validated by POST /transition. The GUI never computes movement locally.
 
 ---
 
 ## 3. Contract with Game Engine (`game`)
 
-The GUI interacts with the Engine using public interfaces exported from `game`:
+> **Note:** Python-side only. The GUI consumes the JSON produced by these functions through §2.1. The Python signatures below serve as the backend's reference, labelled "(backend, Python)".
 
-```python
-from game import (
-    Action,
-    Board,
-    Cell,
-    Engine,
-    Orientation,
-    State,
-    TileType,
-    load_board,
-    occupied_cells,
-)
-```
+### 3.1 Level Loading & Initialization (backend, Python)
 
-### 3.1 Level Loading & Initialization
+<!-- OWNER: bridge/switch spec pending (team lead) -->
 
 ```python
 board: Board = load_board("levels/level1.json")
@@ -97,23 +98,77 @@ For web-based or Three.js renderers, `state.to_dict()` provides JSON-serializabl
 }
 ```
 
-### 3.3 Movement & Transition Handling
+### 3.3 Movement & Transition Handling (backend, Python)
 
-#### User Action Processing
 ```python
-next_state: State | None = engine.transition(current_state, action)
+result: TransitionResult = engine.transition(current_state, action)
 ```
 
-1. **Valid Move (`next_state is not None`):**
-   - Update `current_state = next_state`.
-   - Check victory: `if engine.is_goal(current_state): trigger_win()`.
-   - Animate the roll transition towards `next_state`.
-2. **Invalid Move / Fall (`next_state is None`):**
-   - Occurs when the block rolls off the board, lands on `VOID`, or stands upright on a `FRAGILE` tile.
-   - GUI displays falling/defeat animation.
-   - Prompt user to restart (`R`) or undo move.
-3. **Legal Actions Hinting (Optional):**
-   - Call `engine.legal_actions(current_state)` to get available valid actions `list[Action]`.
+```python
+class TransitionStatus(str, Enum):
+    OK = "ok"          # move applied
+    FALL = "fall"      # block fell (VOID, off-board, or standing on FRAGILE)
+    ILLEGAL = "illegal"  # action not allowed in this state; state unchanged
+
+@dataclass(frozen=True)
+class TransitionResult:
+    status: TransitionStatus
+    state: State | None        # set only when status == OK
+    is_goal: bool              # engine.is_goal(state) when status == OK, else False
+    reason: str | None = None  # FALL: "void" | "off_board" | "fragile_standing"
+                               # ILLEGAL: "switch_cube_not_split" | "action_not_allowed"
+```
+
+#### TransitionResult JSON Shape
+```json
+{
+  "status": "ok",
+  "state": { "...State.to_dict()..." },
+  "is_goal": false,
+  "isGoal": false,
+  "reason": null
+}
+```
+
+#### User Action Processing
+1. `status == "ok"` → `current_state = result.state`; animate roll; if `is_goal` (or `isGoal`) → trigger win.
+2. `status == "fall"` → play fall animation; show restart/undo prompt.
+3. `status == "illegal"` → do NOT animate a fall; play a short "blocked" feedback (shake or flash); keep `current_state`.
+
+#### Legal Actions Hinting (Optional)
+- Call `engine.legal_actions(current_state)` to get available valid actions `list[Action]`.
+- Note: `legal_actions` at a goal state still returns normal moves (this is intentional).
+
+### 3.4 Move Cost
+
+**Engine method (backend, Python):**
+```python
+def step_cost(self, state: State, action: Action) -> float: ...
+```
+
+**Behaviour:**
+- Raises `ValueError` if `action` is illegal from `state`.
+- Cost of a legal move = `tile_costs.get(destination_tile, 1.0)`, where `destination_tile` is the tile under the moved block's new cell(s) (for a split move, the moved cube's new cell). Destination is taken as the tile the moved cube or block ends up on.
+- `SWITCH_CUBE` costs `switch_cost`, default `1.0`.
+- `Board` may carry an optional `tile_costs: dict[TileType, float]`; if absent, all tiles cost `1.0`.
+
+**Notes:**
+- Default is uniform cost `1.0`. Costs may be re-weighted later; the interface does not change.
+- `SearchResult.total_cost` = sum of `step_cost` over path. With uniform costs it equals `solution_length`.
+- <!-- TODO: team to confirm cost table; ML weighting optional -->
+
+**Solver Rules:**
+- **BFS, DFS:** ignore cost during search; still report `total_cost` as the sum.
+- **UCS:** priority $g$ = sum of `step_cost` from start.
+- **A\*:** $f = g + h$. $h$ must be admissible. Use:
+  ```python
+  if not split_mode:
+      h = min_step_cost * ceil(manhattan(anchor, goal) / 2)
+  else:
+      h = 0   # TODO: owner to confirm split-mode goal rule
+  ```
+  Justification: one roll changes the block's anchor by at most 2 cells in Manhattan distance.
+- `min_step_cost` = min of `tile_costs` values (or `1.0` if none, and `switch_cost` if smaller).
 
 ---
 
@@ -166,47 +221,52 @@ Upon receiving `SearchResult`, the GUI updates the metrics sidebar:
 
 ---
 
-## 5. GUI Internal Architecture & Component Contracts
+## 5. GUI Internal Architecture & Component Contracts (JavaScript)
 
-### 5.1 Game Controller (`gui/controller.py`)
+### 5.1 Game Controller (`web/src/controller.js`)
 
-Manages the gameplay state machine and bridges Engine and Renderer.
+Manages the gameplay state machine, user inputs, and replay coordination.
 
-#### State Machine Modes:
-- `MANUAL_PLAY`: User directly controls the block using keyboard.
-- `SEARCHING`: Solver is executing in background; UI displays loading spinner/progress.
-- `REPLAYING`: Solution path is automatically being stepped through with a timer.
-- `REPLAY_PAUSED`: Replay paused; user can manually step forward/backward.
-- `WON`: Block has reached goal; victory banner displayed.
-- `LOST`: Block fell; defeat message displayed with restart option.
+#### State Machine Modes (String Constants):
+- `"MANUAL_PLAY"`: User directly controls the block using keyboard.
+- `"SEARCHING"`: Solver is executing in background; UI displays loading spinner/progress.
+- `"REPLAYING"`: Solution path is automatically being stepped through with a timer.
+- `"REPLAY_PAUSED"`: Replay paused; user can manually step forward/backward.
+- `"WON"`: Block has reached goal; victory banner displayed.
+- `"LOST"`: Block fell; defeat message displayed with restart option.
 
 #### Key Controller Methods:
-```python
-class GameController:
-    def __init__(self, level_path: str) -> None: ...
-    def load_level(self, level_path: str) -> None: ...
-    def restart_level(self) -> None: ...
-    def handle_action(self, action: Action) -> bool: ...
-    def undo_action(self) -> bool: ...
-    def run_solver(self, algorithm_name: str) -> None: ...
-    def start_replay(self) -> None: ...
-    def pause_replay(self) -> None: ...
-    def step_replay_forward(self) -> None: ...
-    def step_replay_backward(self) -> None: ...
-    def set_replay_speed(self, moves_per_second: float) -> None: ...
+```javascript
+// web/src/controller.js
+export class GameController {
+    constructor(api, renderer, ui) { ... }
+    async loadLevel(levelName) { ... }
+    async restartLevel() { ... }
+    async handleAction(action) { ... }
+    undoAction() { ... }
+    async runSolver(algorithmName) { ... }
+    startReplay() { ... }
+    pauseReplay() { ... }
+    stepReplayForward() { ... }
+    stepReplayBackward() { ... }
+    setReplaySpeed(movesPerSecond) { ... }
+}
 ```
 
-### 5.2 Renderer (`gui/renderer.py`)
+### 5.2 Renderer (`web/src/renderer3d.js`)
 
-Handles drawing the board, entities, and UI overlays.
+Handles the Three.js 3D scene, drawing board tiles, block meshes, bridges, switches, and animations.
 
-```python
-class Renderer:
-    def render_board(self, board: Board, bridge_states: tuple[bool, ...]) -> None: ...
-    def render_block(self, state: State) -> None: ...
-    def render_fall_animation(self, state: State, action: Action) -> None: ...
-    def render_victory_animation(self) -> None: ...
-    def render_metrics(self, result: SearchResult) -> None: ...
+```javascript
+// web/src/renderer3d.js
+export class Renderer3D {
+    constructor(container) { ... }
+    renderBoard(board, bridgeStates) { ... }
+    renderBlock(state) { ... }
+    renderFallAnimation(state, action) { ... }
+    renderVictoryAnimation() { ... }
+    renderMetrics(result) { ... }
+}
 ```
 
 ---
@@ -236,28 +296,35 @@ class Renderer:
 
 ---
 
-## 7. Replay Implementation Protocol
+## 7. Replay Implementation Protocol (JavaScript)
 
 To guarantee that animations stay synchronized and never desync from the game rules:
 
-```python
-def play_solution_step(self) -> None:
-    if self.replay_index >= len(self.solution_path):
-        self.mode = Mode.WON
-        return
+```javascript
+async function playSolutionStep() {
+    if (replayIndex >= path.length) {
+        mode = "WON";
+        return;
+    }
 
-    action = self.solution_path[self.replay_index]
-    next_state = self.engine.transition(self.current_state, action)
-    
-    assert next_state is not None, f"Illegal move {action} at replay step {self.replay_index}"
-    
-    self.history.append(self.current_state)
-    self.current_state = next_state
-    self.replay_index += 1
-    
-    self.renderer.render_block(self.current_state)
-    if self.engine.is_goal(self.current_state):
-        self.mode = Mode.WON
+    const action = path[replayIndex];
+    const result = await api.transition(level, currentState, action);
+
+    if (result.status !== "ok") {
+        mode = "ERROR";
+        ui.showMessage(`Replay failed at step ${replayIndex}: ${result.reason}`);
+        return;
+    }
+
+    history.push(currentState);
+    currentState = result.state;
+    replayIndex++;
+
+    renderer.renderBlock(currentState);
+    if (result.isGoal || result.is_goal) {
+        mode = "WON";
+    }
+}
 ```
 
 ---
@@ -266,6 +333,23 @@ def play_solution_step(self) -> None:
 
 TV5 should verify GUI integration against:
 1. `levels/level1.json` with manual keyboard navigation.
-2. Running `solve_bfs` on `level1.json` and verifying that the replayed path ends with `engine.is_goal(final_state) == True`.
+2. POST /solve with algorithm BFS on `level1.json` (invoking backend `solve_bfs`) and verifying that the replayed path ends with `engine.is_goal(final_state) == True`.
 3. Fall animation trigger when rolling into `VOID`.
 4. Split block control when level with split switches (`P`) is introduced.
+
+---
+
+## 9. 3D Conventions
+
+*(default, to be confirmed with team)*
+
+- **World Mapping:** cell `(row, col)` → world `x = col`, `z = row`; `y` is up.
+- **Block Dimensions & Placement:** Standing block sits on its tile; lying block spans two tiles.
+- **Camera Viewport:** Camera frames the board using `board.rows` and `board.cols`.
+- **Animation Speed:** Default roll animation duration: 0.3 s per move (configurable).
+
+---
+
+## Changelog
+
+- v1 (2026-10-17): Switched GUI to Three.js web frontend; added HTTP API (§2.1); replaced transition() return type with TransitionResult (E3); added move cost and admissible heuristic rules (§3.4); algorithms BFS/DFS/UCS/A*.
