@@ -1,6 +1,6 @@
 # Bloxorz Solver — API Contract & Architecture Specifications
 
-> **Target Audience:** TV1 (Core Engine), TV2 (Advanced Mechanics), TV3 & TV4 (Solvers), TV5 (GUI & Integration).  
+> **Target Audience:** TV1 (Core Engine), TV2 (Advanced Mechanics), TV3 & TV4 (Solvers), TV5 (GUI & Integration).
 > **Status:** Stable contract for Core Engine (TV1). Specific items marked as `PENDING` await final team cross-stream agreement.
 
 ---
@@ -11,18 +11,20 @@
 2. **Solver Isolation:** Solvers never inspect tiles, switches, or board details directly. They interact with the game solely via the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`).
 3. **GUI Purity:** The GUI never manipulates block coordinates or game state directly. Every visual state change and replay step must be driven by `engine.transition()`.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
-5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A*) return the identical `SearchResult` data structure.
+5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A\*) return the identical `SearchResult` data structure.
 
 ---
 
 ## 2. Types & Enums
 
 ### 2.1 Coordinates
+
 - A board cell is represented as `Cell = tuple[int, int]` in `(row, col)` order.
 - Origin `(0, 0)` is at the top-left. `row` increases downward, `col` increases to the right.
 - `block_position` denotes the **anchor cell**, defined as the top-left occupied cell of the block.
 
 ### 2.2 Action
+
 ```python
 class Action(Enum):
     UP = "UP"
@@ -33,6 +35,7 @@ class Action(Enum):
 ```
 
 ### 2.3 Orientation
+
 ```python
 class Orientation(Enum):
     STANDING = "STANDING"      # Occupies 1 cell: (r, c)
@@ -40,11 +43,18 @@ class Orientation(Enum):
     VERTICAL = "VERTICAL"      # Occupies 2 cells: (r, c), (r+1, c)
 ```
 
+### 2.4 Public Package Exports
+
+Consumers import from the top-level `game` package (defined in `game/__init__.py`):
+`Action`, `Board`, `BridgeStates`, `Cell`, `Engine`, `Orientation`, `State`,
+`TileType`, `load_board`, `occupied_cells`, `parse_board`.
+
 ---
 
 ## 3. State Data Model
 
 ### 3.1 `State` Definition
+
 ```python
 @dataclass(frozen=True, slots=True)
 class State:
@@ -58,6 +68,7 @@ class State:
 ```
 
 In TV1 Core Engine:
+
 - `bridge_states`: `()` (empty tuple)
 - `split_mode`: `False`
 - `cube1_position`: `None`
@@ -65,11 +76,14 @@ In TV1 Core Engine:
 - `active_cube`: `None`
 
 ### 3.2 State Serialization (`to_dict` / `from_dict`)
+
 For serialization and communication with the Three.js GUI:
+
 - `State.to_dict() -> dict`: Returns JSON-serializable primitives (lists for coordinates, enum member names as strings).
 - `State.from_dict(d: dict) -> State`: Inverts `to_dict()`, ensuring `State.from_dict(state.to_dict()) == state`.
 
 **Exported JSON Shape:**
+
 ```json
 {
   "block_position": [3, 4],
@@ -81,6 +95,11 @@ For serialization and communication with the Three.js GUI:
   "active_cube": null
 }
 ```
+
+### 3.3 Occupied Cells
+
+- `State.occupied_cells() -> tuple[Cell, ...]`: Returns the cells occupied by the block in non-split mode, per Section 2.3.
+- Module-level convenience function `occupied_cells(state: State) -> tuple[Cell, ...]` in `game/state.py` returns the same result.
 
 ---
 
@@ -99,28 +118,63 @@ class Engine:
 ### 4.1 Method Specifications
 
 #### `get_initial_state() -> State`
+
 - Returns the initial state of the stage.
 - Block orientation is `Orientation.STANDING`.
 - Anchor is at the board's designated start cell `S`.
 
 #### `legal_actions(state: State) -> list[Action]`
+
 - Returns a list of actions where `transition(state, action)` does not evaluate to `None`.
 - Fixed deterministic ordering: `[Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT, Action.SWITCH_CUBE]`.
 - Goal states are **not** treated as terminal by `legal_actions`: legal moves continue to be generated if the block can roll from that position. Solvers check `is_goal(state)` themselves.
 
 #### `transition(state: State, action: Action) -> State | None`
+
 - **Pure function:** Never mutates `state` or internal board structures; has no side effects.
 - Returns the resulting successor `State` if the move is legal.
 - Returns `None` if the move is illegal (e.g. block rolls off-board or any occupied cell lands on `VOID`).
 - Falling is not represented as an active state.
 
 #### `is_goal(state: State) -> bool`
+
 - Returns `True` if and only if the block is `Orientation.STANDING` directly on the goal cell `G`, and `split_mode` is `False`.
 - Returns `False` if the block is lying (`HORIZONTAL` or `VERTICAL`) across the goal cell. (Note: the goal tile safely supports a lying block, but does not trigger victory).
 
 #### `step_cost(state: State, action: Action, next_state: State) -> float`
+
 - `[PENDING - Section 6.2]` Returns `1.0` by default in TV1.
-- Provides edge weight / step cost for UCS and A*.
+- Provides edge weight / step cost for UCS and A\*.
+
+### 4.2 Board & Level Loader (`game/board.py`)
+
+`Engine` is constructed with an immutable `Board` (frozen dataclass) and exposes it as `engine.board`.
+
+`Board` fields:
+
+- `rows: int`, `cols: int` — grid dimensions.
+- `start: Cell`, `goal: Cell` — coordinates of `S` and `G`.
+- `grid: tuple[tuple[TileType, ...], ...]` — parsed tile types.
+- `bridges: tuple[dict, ...]`, `switches: tuple[dict, ...]` — raw TV2 config, parsed but not interpreted in TV1.
+- `name: str` — level name (`""` if absent).
+
+`Board` methods:
+
+- `in_bounds(cell: Cell) -> bool`
+- `tile_at(cell: Cell) -> TileType` — raises `IndexError` if `cell` is out of bounds.
+
+`TileType` (defined in `game/board.py`): `FLOOR` (`#`), `VOID` (`.`), `GOAL` (`G`), `FRAGILE` (`F`), `BRIDGE` (`B`), `SOFT_SWITCH` (`o`), `HEAVY_SWITCH` (`x`), `SPLIT_SWITCH` (`P`). The start char `S` maps to `FLOOR`.
+
+Loader functions:
+
+- `load_board(path: str | Path) -> Board` — reads and validates a JSON level file.
+- `parse_board(data: dict) -> Board` — validates level data from a dict (used by tests).
+
+Loader errors:
+
+- `ValueError` — missing/empty grid, zero-length row, ragged rows, invalid character, or a number of `S`/`G` different from exactly one.
+- `TypeError` — `bridges`/`switches` is not a list; JSON root is not an object.
+- `FileNotFoundError` — level file does not exist.
 
 ---
 
@@ -145,18 +199,30 @@ class SearchResult:
 ## 6. Pending Items & TV2 Extension Hooks
 
 ### 6.1 `bridge_states` Representation (`PENDING`)
+
 - In TV1, `BridgeStates = tuple[bool, ...]` is defined as a provisional type alias in `game/state.py`.
 - TV2 will finalize the exact indexing and data structure when implementing bridges.
 
 ### 6.2 Cost Function (`PENDING`)
+
 - `step_cost` currently returns `1.0`.
-- The non-uniform cost function for UCS and A* (e.g. differential costs for fragile tiles, switch toggles, or split cubes) will be specified by the team.
+- The non-uniform cost function for UCS and A\* (e.g. differential costs for fragile tiles, switch toggles, or split cubes) will be specified by the team.
 
 ### 6.3 Level JSON Format (`PENDING`)
-- Proposed format uses a character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) alongside metadata lists for `bridges` and `switches`.
+
+- Implemented in `game/board.py` as a character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) alongside metadata lists for `bridges` and `switches`.
+- The schema is still a proposal and remains `PENDING` human sign-off; if it changes, the loader and this doc change together.
 
 ### 6.4 TV2 Extension Hooks in `Engine`
+
 TV1 provides modular extension methods within `Engine` so TV2 can integrate advanced tile logic without altering the public API:
+
 - `_roll(state, action) -> tuple[Cell, Orientation] | None`: Pure geometry roll table.
-- `_cells_supported(state, cells) -> bool`: Checks boundary and floor support.
-- `_apply_tile_effects(state, new_state) -> State`: Applies switches, bridges, and split/merge effects.
+- `_cells_supported(state, cells) -> bool`: Checks boundary and floor support (`# TODO(TV2)` for fragile/bridge).
+- `_apply_tile_effects(state, new_state) -> State`: Applies switches, bridges, and split/merge effects (`# TODO(TV2)`; core returns `new_state` unchanged).
+
+### 6.5 Core Rule Notes
+
+- `legal_actions` checks `transition` for each action in the fixed order `UP, DOWN, LEFT, RIGHT, SWITCH_CUBE` and returns those that are not `None`.
+- `SWITCH_CUBE` always returns `None` in TV1 (`split_mode == False`).
+- TV1 treats `FRAGILE`, `BRIDGE`, and switch tiles as plain floor; only `VOID` and off-board cells block a move.

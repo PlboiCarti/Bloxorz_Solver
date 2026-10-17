@@ -1,6 +1,7 @@
 """Bộ kiểm thử chuyển đổi trạng thái và mô hình dữ liệu của Bloxorz."""
 
 import json
+from collections import deque
 from dataclasses import FrozenInstanceError
 
 import pytest
@@ -457,3 +458,48 @@ def test_engine_step_cost():
     assert engine.step_cost(s1, Action.RIGHT, s2) == 1.0
 
 
+# --- Integration smoke test ---
+
+
+def test_integration_level1_bfs_reaches_goal():
+    """Smoke test: BFS thuần viết trong test, chỉ dùng Engine API để giải levels/level1.json."""
+    board = load_board("levels/level1.json")
+    engine = Engine(board)
+    start = engine.get_initial_state()
+
+    # BFS tìm đường đi ngắn nhất từ trạng thái xuất phát đến trạng thái đích
+    parent: dict[State, tuple[State, Action] | None] = {start: None}
+    queue: deque[State] = deque([start])
+    goal_state: State | None = None
+
+    while queue and goal_state is None:
+        current = queue.popleft()
+        if engine.is_goal(current):
+            goal_state = current
+            break
+        for action in engine.legal_actions(current):
+            next_state = engine.transition(current, action)
+            assert next_state is not None
+            if next_state not in parent:
+                parent[next_state] = (current, action)
+                queue.append(next_state)
+
+    assert goal_state is not None
+
+    # Truy vết đường đi ngược từ đích về xuất phát
+    path: list[Action] = []
+    node = goal_state
+    while node != start:
+        entry = parent[node]
+        assert entry is not None
+        node, action = entry
+        path.append(action)
+    path.reverse()
+
+    # Phát lại đường đi chỉ qua Engine API để xác nhận trạng thái đích
+    replay = start
+    for action in path:
+        next_state = engine.transition(replay, action)
+        assert next_state is not None
+        replay = next_state
+    assert engine.is_goal(replay)

@@ -30,4 +30,3 @@ target-version = "py312"
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 include = ["game", "tests"]
-
