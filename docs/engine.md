@@ -20,6 +20,7 @@
 - Level JSON schema (Section 4.4) is confirmed; advanced tiles are parsed but treated as plain floor by the core (confirmed, loader does not reject them).
 - `BridgeStates` and `step_cost = 1.0` are confirmed temporary placeholders: TV2 finalizes `bridge_states`, the team finalizes the UCS/A\* cost function.
 - Cross-stream dependencies (TV2/TV3/TV4/TV5) are summarized in `docs/api.md` Section 6.7.
+- GUI API contract document created at `docs/gui_api.md` detailing Engine & Solver interfaces, state machine, and replay specifications for TV5.
 - `BridgeStates` được TV2 chốt biểu diễn là `tuple[bool, ...]`, phần tử thứ i ứng với cầu thứ i trong danh sách `bridges` của màn chơi (`True` là mở, `False` là đóng).
 - Ô `FRAGILE` (`F`) chỉ làm rơi khối khi khối nguyên vẹn đứng thẳng (`STANDING`); khối nằm hoặc khối lập phương $1\times1\times1$ được nâng đỡ an toàn.
 - Ô `BRIDGE` (`B`) chỉ nâng đỡ khối khi cầu đang mở (`True`); cầu đóng hoạt động tương tự ô `VOID`.
