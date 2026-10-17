@@ -17,3 +17,6 @@
 - `game/__init__.py` exports the public names: `Action`, `Board`, `BridgeStates`, `Cell`, `Engine`, `Orientation`, `State`, `TileType`, `load_board`, `occupied_cells`, `parse_board`.
 - The level loader raises `ValueError` for grid/start/goal errors and `TypeError` for non-list `bridges`/`switches` or a non-object JSON root.
 - An integration smoke test in `tests/test_transition.py` solves `levels/level1.json` with a BFS written inside the test, using only the Engine API.
+- Level JSON schema (Section 4.4) is confirmed; advanced tiles are parsed but treated as plain floor by the core (confirmed, loader does not reject them).
+- `BridgeStates` and `step_cost = 1.0` are confirmed temporary placeholders: TV2 finalizes `bridge_states`, the team finalizes the UCS/A\* cost function.
+- Cross-stream dependencies (TV2/TV3/TV4/TV5) are summarized in `docs/api.md` Section 6.7.

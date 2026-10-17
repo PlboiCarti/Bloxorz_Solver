@@ -1,20 +1,24 @@
 # AGENTS.md
 
 ## Project
+
 Bloxorz AI solver (CSC14003 course project). Python 3.12, managed with `uv`.
 
 Work is split across branches, one per workstream. Do not edit another team's
 module:
+
 - `engine` — Game Engine (Board/State/Action, rules, advanced tiles) → owns `game/`
-- `solver` — search algorithms (BFS/DFS/UCS/A*) → owns `solvers/`
+- `solver` — search algorithms (BFS/DFS/UCS/A\*) → owns `solvers/`
 - `gui` — GUI + integration → owns `gui/`
 
 ## Current state
+
 The repo is an empty scaffold: every `.py`, `levels/*.json`, and
 `experiments/results.csv` is 0 bytes, and all test files are empty. Check for
 existing content before assuming an implementation exists.
 
 ## Commands
+
 - Sync deps: `uv sync --dev`
 - Run tests: `uv run pytest` (run from repo root)
 - Single test: `uv run pytest tests/test_bfs.py::test_name`
@@ -29,6 +33,7 @@ and zero tests, so bare `pytest` exits 5 — CI treats exit 5 as "no tests", not
 failure.
 
 ## Conventions / gotchas
+
 - `main.py` (repo root, empty) is the intended program entrypoint.
 - Engine API contract is fixed in `docs/api.md`; module boundaries/interfaces in
   `docs/Mô tả công việc.md`. Do not change interfaces without team agreement.

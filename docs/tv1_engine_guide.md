@@ -61,11 +61,11 @@ Architecture principles (from `docs/Mô tả công việc.md`):
 
 ### Files
 
-| Owner | Files |
-|---|---|
-| **TV1 (you)** | `game/__init__.py`, `game/actions.py`, `game/state.py`, `game/board.py`, `game/engine.py`, `tests/test_transition.py`, `docs/api.md`, `docs/engine.md`, `levels/level1.json` (schema sample only), `pyproject.toml` (limited edits in Step 0), `requirements.txt` (via `uv export` only) |
-| **TV2 (do not edit)** | `game/tiles.py`, `game/switches.py`, `game/split_block.py`, `tests/test_advanced_tiles.py`, `levels/level2.json` and any other level file |
-| **Others (do not edit)** | `gui/`, `solvers/`, `experiments/`, other `tests/test_*.py`, `.github/`, `main.py` |
+| Owner                    | Files                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TV1 (you)**            | `game/__init__.py`, `game/actions.py`, `game/state.py`, `game/board.py`, `game/engine.py`, `tests/test_transition.py`, `docs/api.md`, `docs/engine.md`, `levels/level1.json` (schema sample only), `pyproject.toml` (limited edits in Step 0), `requirements.txt` (via `uv export` only) |
+| **TV2 (do not edit)**    | `game/tiles.py`, `game/switches.py`, `game/split_block.py`, `tests/test_advanced_tiles.py`, `levels/level2.json` and any other level file                                                                                                                                                |
+| **Others (do not edit)** | `gui/`, `solvers/`, `experiments/`, other `tests/test_*.py`, `.github/`, `main.py`                                                                                                                                                                                                       |
 
 The `src/` directory is **removed** (decision: single package layout with top-level `game/`).
 
@@ -83,11 +83,11 @@ The `src/` directory is **removed** (decision: single package layout with top-le
 
 For a block at anchor `(r, c)`:
 
-| Orientation | Occupied cells |
-|---|---|
-| `STANDING` | `(r, c)` |
+| Orientation  | Occupied cells       |
+| ------------ | -------------------- |
+| `STANDING`   | `(r, c)`             |
 | `HORIZONTAL` | `(r, c)`, `(r, c+1)` |
-| `VERTICAL` | `(r, c)`, `(r+1, c)` |
+| `VERTICAL`   | `(r, c)`, `(r+1, c)` |
 
 ### 3.3 Transition table (core rolls)
 
@@ -149,15 +149,15 @@ class Orientation(Enum):
 
 State is immutable and hashable: `@dataclass(frozen=True, slots=True)`. Fields (mirroring `docs/Mô tả công việc.md`):
 
-| Field | Type | Core value |
-|---|---|---|
-| `block_position` | `Cell` | anchor cell |
-| `orientation` | `Orientation` | |
-| `bridge_states` | `BridgeStates` (see Section 8, item 1) | `()` in core |
-| `split_mode` | `bool` | `False` |
-| `cube1_position` | `Cell \| None` | `None` |
-| `cube2_position` | `Cell \| None` | `None` |
-| `active_cube` | `int \| None` (1 or 2) | `None` |
+| Field            | Type                                   | Core value   |
+| ---------------- | -------------------------------------- | ------------ |
+| `block_position` | `Cell`                                 | anchor cell  |
+| `orientation`    | `Orientation`                          |              |
+| `bridge_states`  | `BridgeStates` (see Section 8, item 1) | `()` in core |
+| `split_mode`     | `bool`                                 | `False`      |
+| `cube1_position` | `Cell \| None`                         | `None`       |
+| `cube2_position` | `Cell \| None`                         | `None`       |
+| `active_cube`    | `int \| None` (1 or 2)                 | `None`       |
 
 Requirements:
 
@@ -166,8 +166,15 @@ Requirements:
 - JSON export for the Three.js GUI:
   - `State.to_dict() -> dict` returns only JSON-serializable values (lists for cells, enum **names** as strings). Shape:
     ```json
-    {"block_position": [3, 4], "orientation": "STANDING", "bridge_states": [],
-     "split_mode": false, "cube1_position": null, "cube2_position": null, "active_cube": null}
+    {
+      "block_position": [3, 4],
+      "orientation": "STANDING",
+      "bridge_states": [],
+      "split_mode": false,
+      "cube1_position": null,
+      "cube2_position": null,
+      "active_cube": null
+    }
     ```
   - `State.from_dict(d) -> State` is the exact inverse. `from_dict(to_dict(s)) == s` must hold.
 
@@ -183,17 +190,17 @@ Requirements:
 
 The grid is an array of strings, one string per row, one character per cell.
 
-| Char | Tile | Interpreted by TV1? |
-|---|---|---|
-| `#` | floor | yes |
-| `.` | void | yes |
-| `S` | start (floor) | yes |
-| `G` | goal | yes |
-| `F` | fragile | parsed only |
-| `B` | bridge | parsed only |
-| `o` | soft switch | parsed only |
-| `x` | heavy switch | parsed only |
-| `P` | split switch | parsed only |
+| Char | Tile          | Interpreted by TV1? |
+| ---- | ------------- | ------------------- |
+| `#`  | floor         | yes                 |
+| `.`  | void          | yes                 |
+| `S`  | start (floor) | yes                 |
+| `G`  | goal          | yes                 |
+| `F`  | fragile       | parsed only         |
+| `B`  | bridge        | parsed only         |
+| `o`  | soft switch   | parsed only         |
+| `x`  | heavy switch  | parsed only         |
+| `P`  | split switch  | parsed only         |
 
 Example:
 
@@ -276,6 +283,7 @@ In the core, tiles `FRAGILE`, `BRIDGE` and the three switch types are **recogniz
 ### Step 0 — Preflight and tooling
 
 **Do:**
+
 1. Read `AGENTS.md`, `GEMINI.md`, `docs/Mô tả công việc.md`, `docs/bloxorz_project_requirements.md`, and check which files are empty. Report findings briefly.
 2. Run `uv sync --dev`.
 3. Remove the `src/` directory.
@@ -303,6 +311,7 @@ In the core, tiles `FRAGILE`, `BRIDGE` and the three switch types are **recogniz
 **Do:** implement `game/actions.py` and `game/state.py` (Section 4.1, 4.2). Export the public names from `game/__init__.py`.
 
 **Tests** (put them in `tests/test_transition.py` under a `# --- State ---` section):
+
 - two equal states compare equal and have equal hashes; different states differ
 - usable as dict keys / in a `set`
 - assigning to a field raises `FrozenInstanceError`
@@ -318,6 +327,7 @@ In the core, tiles `FRAGILE`, `BRIDGE` and the three switch types are **recogniz
 **Do:** implement `game/board.py` (Section 4.3, 4.4): `TileType`, `Board`, `parse_board`, `load_board`. Write `levels/level1.json` as a small core-only sample of the schema (do **not** touch other level files).
 
 **Tests:**
+
 - parse a valid grid: size, start, goal, tile types
 - reject: empty grid, ragged rows, unknown char, zero or two `S`, zero or two `G`
 - `load_board("levels/level1.json")` works
@@ -333,22 +343,23 @@ In the core, tiles `FRAGILE`, `BRIDGE` and the three switch types are **recogniz
 
 **Tests (all on an open board, e.g. 12x12 all floor, block anchor at `(5, 5)`):**
 
-| From | Action | Expected |
-|---|---|---|
-| STANDING (5,5) | UP | VERTICAL (3,5) |
-| STANDING (5,5) | DOWN | VERTICAL (6,5) |
-| STANDING (5,5) | LEFT | HORIZONTAL (5,3) |
-| STANDING (5,5) | RIGHT | HORIZONTAL (5,6) |
-| HORIZONTAL (5,5) | LEFT | STANDING (5,4) |
-| HORIZONTAL (5,5) | RIGHT | STANDING (5,7) |
-| HORIZONTAL (5,5) | UP | HORIZONTAL (4,5) |
-| HORIZONTAL (5,5) | DOWN | HORIZONTAL (6,5) |
-| VERTICAL (5,5) | UP | STANDING (4,5) |
-| VERTICAL (5,5) | DOWN | STANDING (7,5) |
-| VERTICAL (5,5) | LEFT | VERTICAL (5,4) |
-| VERTICAL (5,5) | RIGHT | VERTICAL (5,6) |
+| From             | Action | Expected         |
+| ---------------- | ------ | ---------------- |
+| STANDING (5,5)   | UP     | VERTICAL (3,5)   |
+| STANDING (5,5)   | DOWN   | VERTICAL (6,5)   |
+| STANDING (5,5)   | LEFT   | HORIZONTAL (5,3) |
+| STANDING (5,5)   | RIGHT  | HORIZONTAL (5,6) |
+| HORIZONTAL (5,5) | LEFT   | STANDING (5,4)   |
+| HORIZONTAL (5,5) | RIGHT  | STANDING (5,7)   |
+| HORIZONTAL (5,5) | UP     | HORIZONTAL (4,5) |
+| HORIZONTAL (5,5) | DOWN   | HORIZONTAL (6,5) |
+| VERTICAL (5,5)   | UP     | STANDING (4,5)   |
+| VERTICAL (5,5)   | DOWN   | STANDING (7,5)   |
+| VERTICAL (5,5)   | LEFT   | VERTICAL (5,4)   |
+| VERTICAL (5,5)   | RIGHT  | VERTICAL (5,6)   |
 
 Additional tests:
+
 - off-board moves return `None` (test each edge and each orientation at least once)
 - a move onto a `VOID` cell returns `None`, including a move where only one of the two cells is void
 - `legal_actions` excludes illegal moves and keeps the order `UP, DOWN, LEFT, RIGHT`
@@ -368,6 +379,7 @@ Additional tests:
 ### Step 5 — Integration smoke test and docs
 
 **Do:**
+
 - Add one small integration test (in `tests/test_transition.py`): load `levels/level1.json`, use a plain BFS **written inside the test** (do not import `solvers/`) to confirm the goal is reachable using only the Engine API.
 - Update `docs/api.md` and `docs/engine.md` so they match the final code.
 - Run the full check suite once.
@@ -412,7 +424,7 @@ Append these (one bullet per line; keep them short) in Step 0 and add more as de
 ## 8. Open items (do not decide on your own)
 
 1. **`bridge_states` representation** — not agreed with TV2. Use a provisional alias in `state.py`: `BridgeStates = tuple[bool, ...]`, indexed by bridge order in the level file, with a `# TODO(TV2): chốt kiểu biểu diễn` comment. Keep every use of the type behind the alias so it can be swapped in one place. Tell the human it is provisional.
-2. **Cost function** — `step_cost` returns `1.0`. The non-uniform cost function for UCS/A* is pending. Do not invent weights.
+2. **Cost function** — `step_cost` returns `1.0`. The non-uniform cost function for UCS/A\* is pending. Do not invent weights.
 3. **Level JSON schema** — Section 4.4 is a proposal. If the human changes it, update the loader, `docs/api.md` and `docs/engine.md` accordingly.
 4. **Hook behavior for advanced tiles** — in the core, advanced tiles are treated as plain floor (Section 5.1). If the human prefers the loader to reject advanced tiles instead, change this in one place and log it.
 5. Anything else not covered by this guide: stop and ask.

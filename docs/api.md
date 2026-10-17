@@ -1,7 +1,7 @@
 # Bloxorz Solver — API Contract & Architecture Specifications
 
 > **Target Audience:** TV1 (Core Engine), TV2 (Advanced Mechanics), TV3 & TV4 (Solvers), TV5 (GUI & Integration).
-> **Status:** Stable contract for Core Engine (TV1). Specific items marked as `PENDING` await final team cross-stream agreement.
+> **Status:** Stable contract for Core Engine (TV1). Items marked `TEMPORARY` are confirmed placeholders awaiting future work; items marked `CONFIRMED` are decided (see Section 6).
 
 ---
 
@@ -60,7 +60,7 @@ Consumers import from the top-level `game` package (defined in `game/__init__.py
 class State:
     block_position: tuple[int, int]
     orientation: Orientation
-    bridge_states: tuple[bool, ...]  # [PENDING - Section 6.1]
+    bridge_states: tuple[bool, ...]  # [TEMPORARY - Section 6.1]
     split_mode: bool = False
     cube1_position: tuple[int, int] | None = None
     cube2_position: tuple[int, int] | None = None
@@ -143,7 +143,7 @@ class Engine:
 
 #### `step_cost(state: State, action: Action, next_state: State) -> float`
 
-- `[PENDING - Section 6.2]` Returns `1.0` by default in TV1.
+- `[TEMPORARY - Section 6.2]` Returns `1.0` by default in TV1.
 - Provides edge weight / step cost for UCS and A\*.
 
 ### 4.2 Board & Level Loader (`game/board.py`)
@@ -196,24 +196,34 @@ class SearchResult:
 
 ---
 
-## 6. Pending Items & TV2 Extension Hooks
+## 6. Decisions, Temporary Assumptions & Cross-Stream Dependencies
 
-### 6.1 `bridge_states` Representation (`PENDING`)
+Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirmed placeholder with future work required (owner noted).
 
-- In TV1, `BridgeStates = tuple[bool, ...]` is defined as a provisional type alias in `game/state.py`.
-- TV2 will finalize the exact indexing and data structure when implementing bridges.
+### 6.1 `bridge_states` Representation (`TEMPORARY — owner: TV2`)
 
-### 6.2 Cost Function (`PENDING`)
+- `BridgeStates = tuple[bool, ...]` is a provisional alias in `game/state.py`; kept as-is until TV2 implements bridges.
+- TV2 finalizes the indexing/representation and updates this section plus `docs/engine.md` when it does.
+- Until then, all other streams treat `State.bridge_states` as an opaque hashable tuple (`()` in core) — do not inspect its contents outside TV2 code.
 
-- `step_cost` currently returns `1.0`.
-- The non-uniform cost function for UCS and A\* (e.g. differential costs for fragile tiles, switch toggles, or split cubes) will be specified by the team.
+### 6.2 Cost Function (`TEMPORARY — owner: team, consumed by TV4`)
 
-### 6.3 Level JSON Format (`PENDING`)
+- `step_cost` returns `1.0`; this placeholder is confirmed.
+- BFS/DFS (TV3) are unaffected. UCS/A\* (TV4) must not invent weights; they wait for the team's final cost specification.
+- When agreed, change `Engine.step_cost` in one place and update this doc.
 
-- Implemented in `game/board.py` as a character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) alongside metadata lists for `bridges` and `switches`.
-- The schema is still a proposal and remains `PENDING` human sign-off; if it changes, the loader and this doc change together.
+### 6.3 Level JSON Format (`CONFIRMED`)
 
-### 6.4 TV2 Extension Hooks in `Engine`
+- Approved and implemented in `game/board.py` as proposed: character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) plus metadata lists `bridges`/`switches`.
+- TV2 owns the other level files; every level must use this schema so it stays reusable across all solvers.
+- If the schema ever changes, the loader, this doc, and `docs/engine.md` change together.
+
+### 6.4 Advanced-Tile Behavior in Core (`CONFIRMED`)
+
+- TV1 parses `FRAGILE`, `BRIDGE` and switch tiles but treats them as plain floor; only `VOID` and off-board cells block a move (the loader does not reject advanced tiles).
+- TV2 replaces this behavior behind the hooks in 6.5 without changing the public Engine API.
+
+### 6.5 TV2 Extension Hooks in `Engine`
 
 TV1 provides modular extension methods within `Engine` so TV2 can integrate advanced tile logic without altering the public API:
 
@@ -221,8 +231,19 @@ TV1 provides modular extension methods within `Engine` so TV2 can integrate adva
 - `_cells_supported(state, cells) -> bool`: Checks boundary and floor support (`# TODO(TV2)` for fragile/bridge).
 - `_apply_tile_effects(state, new_state) -> State`: Applies switches, bridges, and split/merge effects (`# TODO(TV2)`; core returns `new_state` unchanged).
 
-### 6.5 Core Rule Notes
+The split-mode/`SWITCH_CUBE` early exits in `transition` also carry `# TODO(TV2)` markers in `game/engine.py`.
+
+### 6.6 Core Rule Notes
 
 - `legal_actions` checks `transition` for each action in the fixed order `UP, DOWN, LEFT, RIGHT, SWITCH_CUBE` and returns those that are not `None`.
 - `SWITCH_CUBE` always returns `None` in TV1 (`split_mode == False`).
 - TV1 treats `FRAGILE`, `BRIDGE`, and switch tiles as plain floor; only `VOID` and off-board cells block a move.
+
+### 6.7 Stream Dependency Summary
+
+| Stream                   | Can rely on now                                                                                | Must wait for                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| TV2 (advanced mechanics) | Public Engine API, hooks (6.5), parsed `bridges`/`switches` on `Board`, `BridgeStates` alias   | Final `bridge_states` representation (6.1, TV2 owns) |
+| TV3 (BFS/DFS)            | Full Engine API, `step_cost == 1.0`, level schema (6.3)                                        | —                                                    |
+| TV4 (UCS/A\*)            | Full Engine API, level schema (6.3)                                                            | Final cost function (6.2)                            |
+| TV5 (GUI/integration)    | `State.to_dict` shape, `engine.board`, level schema (6.3), `SearchResult` contract (Section 5) | Solver outputs and final cost values                 |

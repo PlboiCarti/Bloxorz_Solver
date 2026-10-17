@@ -1,4 +1,5 @@
 # TÀI LIỆU PHÂN CHIA CÔNG VIỆC VÀ GIAO TIẾP GIỮA CÁC MODULE
+
 ## Đồ án Bloxorz AI Solver
 
 ---
@@ -46,6 +47,7 @@ Nguyên tắc kiến trúc:
 # 2. CÔNG VIỆC 1 — GAME ENGINE
 
 ## Thành viên
+
 - TV1
 - TV2
 
@@ -291,7 +293,7 @@ if engine.is_goal(state):
 
 ### `step_cost(state, action, next_state)`
 
-Được sử dụng chủ yếu cho UCS và A*.
+Được sử dụng chủ yếu cho UCS và A\*.
 
 Ví dụ:
 
@@ -337,6 +339,7 @@ Có thể mô tả ngắn gọn như sau:
 # 4. CÔNG VIỆC 2 — AI SOLVER
 
 ## Thành viên
+
 - TV3
 - TV4
 
@@ -358,12 +361,12 @@ TV3 phụ trách:
 
 ---
 
-## 4.2. TV4 — UCS + A*
+## 4.2. TV4 — UCS + A\*
 
 TV4 phụ trách:
 
 - UCS
-- A*
+- A\*
 - Priority Queue
 - Cost handling
 - Heuristic
@@ -556,13 +559,14 @@ SearchResult
 
 Có thể mô tả ngắn gọn:
 
-> **Output của Công việc 2:** Một tập các Solver độc lập gồm BFS, DFS/IDS, UCS và A*, sử dụng API của Game Engine và trả về một SearchResult thống nhất chứa Solution Path và các metrics cần thiết.
+> **Output của Công việc 2:** Một tập các Solver độc lập gồm BFS, DFS/IDS, UCS và A\*, sử dụng API của Game Engine và trả về một SearchResult thống nhất chứa Solution Path và các metrics cần thiết.
 
 ---
 
 # 7. CÔNG VIỆC 3 — GUI + INTEGRATION
 
 ## Thành viên
+
 - TV5
 
 ## Mục tiêu
@@ -839,11 +843,11 @@ Một khi các interface này được thống nhất, Engine Team và Solver Te
 
 # 13. TÓM TẮT BÀN GIAO GIỮA 3 CÔNG VIỆC
 
-| Công việc | Thành viên | Đầu vào | Đầu ra phải bàn giao |
-|---|---|---|---|
-| **1. Game Engine** | TV1 + TV2 | Map / Action | Engine API + State + Board + toàn bộ luật Bloxorz + tests |
-| **2. AI Solver** | TV3 + TV4 | Engine API + Initial State | BFS, DFS/IDS, UCS, A* + SearchResult |
-| **3. GUI / Integration** | TV5 | Engine + Solver | Ứng dụng hoàn chỉnh: chơi tay, chọn thuật toán, animation, metrics |
+| Công việc                | Thành viên | Đầu vào                    | Đầu ra phải bàn giao                                               |
+| ------------------------ | ---------- | -------------------------- | ------------------------------------------------------------------ |
+| **1. Game Engine**       | TV1 + TV2  | Map / Action               | Engine API + State + Board + toàn bộ luật Bloxorz + tests          |
+| **2. AI Solver**         | TV3 + TV4  | Engine API + Initial State | BFS, DFS/IDS, UCS, A\* + SearchResult                              |
+| **3. GUI / Integration** | TV5        | Engine + Solver            | Ứng dụng hoàn chỉnh: chơi tay, chọn thuật toán, animation, metrics |
 
 ---
 
