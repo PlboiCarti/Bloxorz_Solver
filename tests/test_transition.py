@@ -5,9 +5,10 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from game.actions import Orientation
+from game.actions import Action, Orientation
 from game.board import Board, TileType, load_board, parse_board
-from game.state import State, occupied_cells
+from game.engine import Engine
+from game.state import Cell, State, occupied_cells
 
 # --- State ---
 
@@ -217,4 +218,242 @@ def test_board_in_bounds_and_edges():
         board.tile_at((-1, 0))
     with pytest.raises(IndexError):
         board.tile_at((board.rows, board.cols))
+
+
+# --- Engine Core ---
+
+
+def make_open_board(
+    rows: int = 12,
+    cols: int = 12,
+    start: Cell = (0, 0),
+    goal: Cell | None = None,
+) -> Board:
+    """Tạo bảng mở gồm toàn ô sàn, có 1 ô S và 1 ô G."""
+    if goal is None:
+        goal = (rows - 1, cols - 1)
+    grid_rows: list[str] = []
+    for r in range(rows):
+        chars: list[str] = []
+        for c in range(cols):
+            if (r, c) == start:
+                chars.append("S")
+            elif (r, c) == goal:
+                chars.append("G")
+            else:
+                chars.append("#")
+        grid_rows.append("".join(chars))
+    return parse_board({"name": "open_board", "grid": grid_rows})
+
+
+@pytest.mark.parametrize(
+    ("from_ori", "action", "expected_ori", "expected_pos"),
+    [
+        (Orientation.STANDING, Action.UP, Orientation.VERTICAL, (3, 5)),
+        (Orientation.STANDING, Action.DOWN, Orientation.VERTICAL, (6, 5)),
+        (Orientation.STANDING, Action.LEFT, Orientation.HORIZONTAL, (5, 3)),
+        (Orientation.STANDING, Action.RIGHT, Orientation.HORIZONTAL, (5, 6)),
+        (Orientation.HORIZONTAL, Action.LEFT, Orientation.STANDING, (5, 4)),
+        (Orientation.HORIZONTAL, Action.RIGHT, Orientation.STANDING, (5, 7)),
+        (Orientation.HORIZONTAL, Action.UP, Orientation.HORIZONTAL, (4, 5)),
+        (Orientation.HORIZONTAL, Action.DOWN, Orientation.HORIZONTAL, (6, 5)),
+        (Orientation.VERTICAL, Action.UP, Orientation.STANDING, (4, 5)),
+        (Orientation.VERTICAL, Action.DOWN, Orientation.STANDING, (7, 5)),
+        (Orientation.VERTICAL, Action.LEFT, Orientation.VERTICAL, (5, 4)),
+        (Orientation.VERTICAL, Action.RIGHT, Orientation.VERTICAL, (5, 6)),
+    ],
+)
+def test_engine_12_transitions_table(
+    from_ori: Orientation,
+    action: Action,
+    expected_ori: Orientation,
+    expected_pos: tuple[int, int],
+):
+    """Kiểm tra chính xác 12 bước chuyển trạng thái chuẩn trên bảng mở tại anchor (5, 5)."""
+    board = make_open_board(12, 12)
+    engine = Engine(board)
+    current_state = State(block_position=(5, 5), orientation=from_ori)
+
+    next_state = engine.transition(current_state, action)
+    assert next_state is not None
+    assert next_state.orientation == expected_ori
+    assert next_state.block_position == expected_pos
+
+
+def test_engine_off_board_moves_return_none():
+    """Kiểm tra lăn ra ngoài biên ở cả 4 cạnh và 3 hướng trả về None."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+
+    # Cạnh trên (UP)
+    assert engine.transition(State((0, 5), Orientation.STANDING), Action.UP) is None
+    assert engine.transition(State((0, 5), Orientation.HORIZONTAL), Action.UP) is None
+    assert engine.transition(State((0, 5), Orientation.VERTICAL), Action.UP) is None
+
+    # Cạnh dưới (DOWN)
+    assert engine.transition(State((9, 5), Orientation.STANDING), Action.DOWN) is None
+    assert engine.transition(State((9, 5), Orientation.HORIZONTAL), Action.DOWN) is None
+    assert engine.transition(State((8, 5), Orientation.VERTICAL), Action.DOWN) is None
+
+    # Cạnh trái (LEFT)
+    assert engine.transition(State((5, 0), Orientation.STANDING), Action.LEFT) is None
+    assert engine.transition(State((5, 0), Orientation.HORIZONTAL), Action.LEFT) is None
+    assert engine.transition(State((5, 0), Orientation.VERTICAL), Action.LEFT) is None
+
+    # Cạnh phải (RIGHT)
+    assert engine.transition(State((5, 9), Orientation.STANDING), Action.RIGHT) is None
+    assert engine.transition(State((5, 8), Orientation.HORIZONTAL), Action.RIGHT) is None
+    assert engine.transition(State((5, 9), Orientation.VERTICAL), Action.RIGHT) is None
+
+
+def test_engine_move_onto_void_returns_none():
+    """Kiểm tra rơi vào ô VOID (cả khi chỉ 1 trong 2 ô là VOID) trả về None."""
+    # Bảng có ô (1, 3) là VOID
+    grid = [
+        "S#####",
+        "###.##",
+        "#####G",
+    ]
+    board = parse_board({"name": "void_test", "grid": grid})
+    engine = Engine(board)
+
+    # Đứng tại (1, 1), lăn RIGHT -> HORIZONTAL anchor (1, 2) chiếm (1, 2) [FLOOR] và (1, 3) [VOID]
+    s_stand = State(block_position=(1, 1), orientation=Orientation.STANDING)
+    assert engine.transition(s_stand, Action.RIGHT) is None
+
+    # Đứng tại (0, 3), lăn DOWN -> VERTICAL anchor (1, 3) chiếm (1, 3) [VOID] và (2, 3) [FLOOR]
+    s_stand_v = State(block_position=(0, 3), orientation=Orientation.STANDING)
+    assert engine.transition(s_stand_v, Action.DOWN) is None
+
+    # Đứng tại (0, 0), lăn RIGHT -> HORIZONTAL anchor (0, 1) chiếm (0, 1) [FLOOR] và (0, 2) [FLOOR], hợp lệ
+    s_stand_ok = State(block_position=(0, 0), orientation=Orientation.STANDING)
+    assert engine.transition(s_stand_ok, Action.RIGHT) is not None
+
+
+def test_engine_legal_actions_order_and_filtering():
+    """Kiểm tra legal_actions lọc bỏ bước đi sai và giữ thứ tự UP, DOWN, LEFT, RIGHT."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+
+    # Tại góc trên trái (0, 0), UP và LEFT ra ngoài biên -> chỉ còn DOWN, RIGHT
+    s_corner = State(block_position=(0, 0), orientation=Orientation.STANDING)
+    actions = engine.legal_actions(s_corner)
+    assert actions == [Action.DOWN, Action.RIGHT]
+
+    # Tại giữa bảng (5, 5), cả 4 hướng đều hợp lệ, SWITCH_CUBE bị loại
+    s_center = State(block_position=(5, 5), orientation=Orientation.STANDING)
+    assert engine.legal_actions(s_center) == [
+        Action.UP,
+        Action.DOWN,
+        Action.LEFT,
+        Action.RIGHT,
+    ]
+
+
+def test_engine_is_goal():
+    """Kiểm tra điều kiện thắng: STANDING trên G là True, nằm ngang/dọc qua G là False."""
+    board = make_open_board(10, 10, goal=(4, 6))
+    engine = Engine(board)
+
+    # STANDING trên G
+    s_win = State(block_position=(4, 6), orientation=Orientation.STANDING)
+    assert engine.is_goal(s_win) is True
+
+    # HORIZONTAL vắt ngang qua G: anchor (4, 5) chiếm (4, 5) và (4, 6)
+    s_lying_h = State(block_position=(4, 5), orientation=Orientation.HORIZONTAL)
+    assert engine.is_goal(s_lying_h) is False
+
+    # VERTICAL vắt dọc qua G: anchor (3, 6) chiếm (3, 6) và (4, 6)
+    s_lying_v = State(block_position=(3, 6), orientation=Orientation.VERTICAL)
+    assert engine.is_goal(s_lying_v) is False
+
+    # STANDING ở ô khác G
+    s_other = State(block_position=(0, 0), orientation=Orientation.STANDING)
+    assert engine.is_goal(s_other) is False
+
+
+def test_engine_lying_block_supported_on_goal():
+    """Kiểm tra khối nằm trên ô đích vẫn được nâng đỡ bình thường (không rơi, không thắng)."""
+    board = make_open_board(10, 10, goal=(5, 6))
+    engine = Engine(board)
+
+    # Từ STANDING (5, 5), lăn RIGHT -> HORIZONTAL (5, 6) chiếm (5, 6) [G] và (5, 7) [FLOOR]
+    s_start = State(block_position=(5, 5), orientation=Orientation.STANDING)
+    s_next = engine.transition(s_start, Action.RIGHT)
+    assert s_next is not None
+    assert s_next.block_position == (5, 6)
+    assert s_next.orientation == Orientation.HORIZONTAL
+    assert engine.is_goal(s_next) is False
+
+
+def test_engine_get_initial_state():
+    """Kiểm tra get_initial_state() trả về trạng thái STANDING tại ô xuất phát."""
+    board = make_open_board(8, 8, start=(2, 3))
+    engine = Engine(board)
+
+    s0 = engine.get_initial_state()
+    assert s0.block_position == (2, 3)
+    assert s0.orientation == Orientation.STANDING
+    assert s0.split_mode is False
+    assert s0.bridge_states == ()
+
+
+def test_engine_legal_actions_on_goal_state():
+    """Kiểm tra legal_actions vẫn sinh bước đi khi khối đang đứng ở ô đích (không terminal)."""
+    board = make_open_board(10, 10, goal=(5, 5))
+    engine = Engine(board)
+    s_goal = State(block_position=(5, 5), orientation=Orientation.STANDING)
+
+    actions = engine.legal_actions(s_goal)
+    assert Action.UP in actions
+    assert Action.DOWN in actions
+    assert Action.LEFT in actions
+    assert Action.RIGHT in actions
+
+
+def test_engine_switch_cube_illegal_in_core():
+    """Kiểm tra transition(state, SWITCH_CUBE) luôn trả về None trong non-split mode."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+    s = State(block_position=(5, 5), orientation=Orientation.STANDING, split_mode=False)
+
+    assert engine.transition(s, Action.SWITCH_CUBE) is None
+
+
+def test_engine_transition_immutability_and_determinism():
+    """Kiểm tra transition không thay đổi state ban đầu và có tính đơn định (deterministic)."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+    s = State(block_position=(5, 5), orientation=Orientation.STANDING)
+
+    s1 = engine.transition(s, Action.RIGHT)
+    s2 = engine.transition(s, Action.RIGHT)
+
+    assert s.block_position == (5, 5)
+    assert s.orientation == Orientation.STANDING
+    assert s1 == s2
+    assert s1 is not s
+
+
+def test_engine_roundtrip_roll():
+    """Kiểm tra lăn đi và lăn ngược lại (e.g. RIGHT rồi LEFT) quay về state ban đầu."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+    s = State(block_position=(5, 5), orientation=Orientation.STANDING)
+
+    s_right = engine.transition(s, Action.RIGHT)
+    assert s_right is not None
+    s_back = engine.transition(s_right, Action.LEFT)
+    assert s_back == s
+
+
+def test_engine_step_cost():
+    """Kiểm tra step_cost trả về 1.0 trong TV1 core."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+    s1 = State(block_position=(5, 5), orientation=Orientation.STANDING)
+    s2 = engine.transition(s1, Action.RIGHT)
+    assert s2 is not None
+    assert engine.step_cost(s1, Action.RIGHT, s2) == 1.0
+
 
