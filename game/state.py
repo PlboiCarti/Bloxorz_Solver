@@ -8,7 +8,8 @@ from game.actions import Orientation
 # Kiểu tọa độ cho một ô trên bảng (row, col)
 Cell = tuple[int, int]
 
-# TODO(TV2): chốt kiểu biểu diễn trạng thái cầu với TV2
+# Trạng thái cầu: phần tử thứ i ứng với cầu thứ i trong danh sách `bridges` của file màn chơi;
+# True = cầu MỞ (đi được), False = cầu ĐÓNG (như VOID). Màn không có cầu -> ().
 BridgeStates = tuple[bool, ...]
 
 
@@ -19,7 +20,7 @@ class State:
     Attributes:
         block_position: Tọa độ neo (anchor) của khối hộp (ô trên cùng bên trái).
         orientation: Hướng hiện tại của khối hộp (STANDING, HORIZONTAL, VERTICAL).
-        bridge_states: Trạng thái đóng/mở của các cây cầu (provisional).
+        bridge_states: Trạng thái đóng/mở của các cây cầu (True = mở), theo thứ tự `bridges` của màn.
         split_mode: Cờ đánh dấu khối có đang bị tách thành 2 khối lập phương hay không.
         cube1_position: Tọa độ khối lập phương 1 khi ở chế độ split.
         cube2_position: Tọa độ khối lập phương 2 khi ở chế độ split.
@@ -35,7 +36,12 @@ class State:
     active_cube: int | None = None
 
     def occupied_cells(self) -> tuple[Cell, ...]:
-        """Trả về danh sách tọa độ các ô mà khối đang chiếm giữ (chế độ không split)."""
+        """Trả về danh sách tọa độ các ô mà khối đang chiếm giữ.
+
+        Ở split_mode trả về (cube1_position, cube2_position).
+        """
+        if self.split_mode and self.cube1_position is not None and self.cube2_position is not None:
+            return (self.cube1_position, self.cube2_position)
         r, c = self.block_position
         match self.orientation:
             case Orientation.STANDING:

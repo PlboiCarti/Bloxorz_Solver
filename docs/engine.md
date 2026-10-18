@@ -29,4 +29,8 @@
 - `docs/api.md` §6.1/§6.4/§6.5/§6.6 are now all CONFIRMED: advanced mechanics implemented in `game/tiles.py`, `game/switches.py`, `game/split_block.py`; the `_roll`/`_cells_supported`/`_apply_tile_effects` hooks are real (no `# TODO(TV2)`).
 - Bridge/switch config is deep-validated when the `Engine` is built (`build_mechanics`); mismatches with the grid (missing `id`, wrong `cell`/`type`, unknown bridge target, bad `initial`/`mode`) raise `ValueError`.
 - `SWITCH_CUBE` is legal only in split mode; soft switches trigger on any contact while heavy/split switch and fragile breaking require the intact 1x1x2 block standing; split switch yields two 1x1 cubes with automatic merge.
-- Levels `levels/level2.json`–`level10.json` added (levels 1–10 complete).
+- Ô `FRAGILE` (`F`) chỉ làm rơi khối khi khối nguyên vẹn đứng thẳng (`STANDING`); khối nằm hoặc khối lập phương $1\times1\times1$ được nâng đỡ an toàn.
+- Ô `BRIDGE` (`B`) chỉ nâng đỡ khối khi cầu đang mở (`True`); cầu đóng hoạt động tương tự ô `VOID`.
+- Các chế độ cầu gồm `toggle`, `permanent_open`, `permanent_closed` được cập nhật thuần túy vào `bridge_states`.
+- Khi giẫm lên công tắc `split` (`P`), khối tách thành hai khối $1\times1\times1$ tại `split_cells`, điều khiển cube1; `SWITCH_CUBE` chuyển đổi khối điều khiển, và hai khối kề nhau tự động hợp nhất (`merge`) thành khối $1\times1\times2$ (`HORIZONTAL` hoặc `VERTICAL`).
+- Levels `levels/level2.json`–`level10.json` added (levels 1–10 complete); TV2 tested solving all 9 levels.

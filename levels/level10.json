@@ -1,0 +1,100 @@
+{
+  "name": "level10 - everything combined",
+  "grid": [
+    "####..FF##..........",
+    "#S##BB##P#..........",
+    "##x#..FF##..........",
+    "..............####..",
+    "####..#####FFF####..",
+    "#o##BB#####FFF##G#..",
+    "####..#####...####.."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        1,
+        4
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        5
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C1",
+      "cell": [
+        5,
+        4
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C2",
+      "cell": [
+        5,
+        5
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        2,
+        2
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_open"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        1
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "C1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "C2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        1,
+        8
+      ],
+      "type": "split",
+      "targets": [],
+      "split_cells": [
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          10
+        ]
+      ]
+    }
+  ]
+}
