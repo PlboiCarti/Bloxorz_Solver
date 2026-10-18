@@ -1,7 +1,7 @@
 # Bloxorz Solver — API Contract & Architecture Specifications
 
 > **Target Audience:** TV1 (Core Engine), TV2 (Advanced Mechanics), TV3 & TV4 (Solvers), TV5 (GUI & Integration).
-> **Status:** Stable contract for Core Engine (TV1). Items marked `TEMPORARY` are confirmed placeholders awaiting future work; items marked `CONFIRMED` are decided (see Section 6).
+> **Status:** Python Engine API implemented in `game/`. `docs/gui_api.md` is the GUI/backend wire contract. `TEMPORARY` marks a confirmed placeholder decision; `CONFIRMED` marks an agreed behavior or representation.
 
 ---
 
@@ -9,7 +9,7 @@
 
 1. **Single Source of Truth:** The `Engine` is the **only** module that contains and enforces Bloxorz game rules.
 2. **Solver Isolation:** Solvers never inspect tiles, switches, or board details directly. They interact with the game solely via the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`).
-3. **GUI Purity (HTTP architecture):** The GUI never manipulates block coordinates or game state directly, and never calls the Engine in-process. It talks only to the backend HTTP endpoints (`docs/gui_api.md` §2.1), which invoke `engine.transition()`; every visual state change and replay step originates from a backend `TransitionResult`.
+3. **GUI Purity:** The GUI never manipulates block coordinates or game state directly. Every visual state change and replay step must be driven by `engine.transition()`.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
 5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A\*) return the identical `SearchResult` data structure.
 
@@ -46,8 +46,9 @@ class Orientation(Enum):
 ### 2.4 Public Package Exports
 
 Consumers import from the top-level `game` package (defined in `game/__init__.py`):
-`Action`, `Board`, `BridgeStates`, `Cell`, `Engine`, `Orientation`, `State`,
-`TileType`, `load_board`, `occupied_cells`, `parse_board`.
+`Action`, `Board`, `Bridge`, `BridgeStates`, `Cell`, `Engine`, `Orientation`,
+`State`, `Switch`, `SwitchTarget`, `TileType`, `TransitionResult`,
+`TransitionStatus`, `load_board`, `occupied_cells`, `parse_board`.
 
 ---
 
@@ -98,7 +99,7 @@ For serialization and communication with the Three.js GUI:
 
 ### 3.3 Occupied Cells
 
-- `State.occupied_cells() -> tuple[Cell, ...]`: Returns the cells occupied by the block in non-split mode, per Section 2.3.
+- `State.occupied_cells() -> tuple[Cell, ...]`: Returns occupied cells in canonical order for both standard and split states, per Section 2.3.
 - Module-level convenience function `occupied_cells(state: State) -> tuple[Cell, ...]` in `game/state.py` returns the same result.
 
 ---
@@ -115,7 +116,21 @@ class Engine:
     def step_cost(self, state: State, action: Action, next_state: State) -> float: ...
 ```
 
-`TransitionResult` is the approved transition contract (`docs/gui_api.md` §3.3): `status` ∈ `ok | fall | illegal`, `state` set only when `status == "ok"`, plus `is_goal` and `reason`. **Implementation pending (TV1/TV2):** until the engine change lands, `game/engine.py` returns `State | None` (`None` = no legal successor, i.e. `fall` or `illegal`), and the backend wraps it into `TransitionResult` for the GUI. The Engine is invoked by the backend only; the GUI consumes it over HTTP (`docs/gui_api.md` §2.1; known deltas of the current adapter are listed in `docs/gui_api.md` §11).
+`transition` returns a `TransitionResult`, separating the game outcome from the HTTP envelope (encoding in `docs/gui_api.md` §3.3):
+
+```python
+class TransitionStatus(str, Enum):
+    OK = "ok"
+    FALL = "fall"
+    ILLEGAL = "illegal"
+
+@dataclass(frozen=True)
+class TransitionResult:
+    status: TransitionStatus
+    state: State | None
+    is_goal: bool
+    reason: str | None = None
+```
 
 ### 4.1 Method Specifications
 
@@ -127,20 +142,15 @@ class Engine:
 
 #### `legal_actions(state: State) -> list[Action]`
 
-- Returns a list of actions whose `transition(state, action)` yields `status == "ok"` (before the `TransitionResult` change lands: actions where `transition(...) is not None`).
-- Fixed deterministic ordering: `[Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT, Action.SWITCH_CUBE]`.
+- Tries each `Action` in enum declaration order: `UP`, `DOWN`, `LEFT`, `RIGHT`, `SWITCH_CUBE`.
+- Returns only actions whose `transition(state, action).status` is `TransitionStatus.OK`. `FALL` and `ILLEGAL` results are excluded; `SWITCH_CUBE` can be returned only in split mode.
 - Goal states are **not** treated as terminal by `legal_actions`: legal moves continue to be generated if the block can roll from that position. Solvers check `is_goal(state)` themselves.
 
 #### `transition(state: State, action: Action) -> TransitionResult`
 
 - **Pure function:** Never mutates `state` or internal board structures; has no side effects.
-- Returns the approved `TransitionResult` (`docs/gui_api.md` §3.3):
-  - `status="ok"`: `state` is the successor `State` and `is_goal = engine.is_goal(state)`.
-  - `status="fall"`: the move leaves the block/cubes unsupported (off-board, `VOID`, closed `BRIDGE`, or `STANDING` block/cube on `FRAGILE`); `state` is `None`, `is_goal` is `False`.
-  - `status="illegal"`: the action is not allowed from this state; `state` is `None`, `is_goal` is `False`.
-  - `reason` is `None` for `ok`, otherwise one of the fixed lowercase codes in `docs/gui_api.md` §3.3.
-- **Implementation pending (TV1/TV2):** until the engine change lands it returns `State | None`, where `None` covers both `fall` and `illegal`; the backend adapts that into `TransitionResult` for the GUI.
-- Falling is not represented as an active `State`.
+- Returns `OK` with a successor `State`, `FALL` with `state=None` for unsupported movement, or `ILLEGAL` with `state=None` for an action invalid in the current state. Canonical reasons and HTTP encoding are specified in `docs/gui_api.md` §3.3.
+- Falling is not represented as an active state, and does not persist board damage.
 
 #### `is_goal(state: State) -> bool`
 
@@ -156,29 +166,56 @@ class Engine:
 
 `Engine` is constructed with an immutable `Board` (frozen dataclass) and exposes it as `engine.board`.
 
-`Board` fields:
+`Board` is a frozen dataclass. Its level data is immutable; the derived lookup maps are read-only.
 
-- `rows: int`, `cols: int` — grid dimensions.
-- `start: Cell`, `goal: Cell` — coordinates of `S` and `G`.
-- `grid: tuple[tuple[TileType, ...], ...]` — parsed tile types.
-- `bridges: tuple[dict, ...]`, `switches: tuple[dict, ...]` — raw TV2 config, parsed but not interpreted in TV1.
-- `name: str` — level name (`""` if absent).
+| Field | Type | Meaning |
+|---|---|---|
+| `rows`, `cols` | `int` | Dimensions derived from the character grid. |
+| `start`, `goal` | `Cell` | Coordinates of the unique `S` and `G`; the `S` cell is stored as `FLOOR` in `grid`. |
+| `grid` | `tuple[tuple[TileType, ...], ...]` | Parsed tile matrix. |
+| `bridges` | `tuple[Bridge, ...]` | Bridge metadata in input JSON order. |
+| `switches` | `tuple[Switch, ...]` | Switch metadata in input JSON order. |
+| `name` | `str` | Level name; defaults to `""`. |
+| `bridge_at` | read-only `Mapping[Cell, Bridge]` | Derived lookup from a bridge cell to its metadata. |
+| `switch_at` | read-only `Mapping[Cell, Switch]` | Derived lookup from a switch cell to its metadata. |
+
+The metadata records are frozen dataclasses:
+
+```python
+@dataclass(frozen=True, slots=True)
+class Bridge:
+    id: str
+    cell: Cell
+    initial: str  # "open" or "closed"
+
+@dataclass(frozen=True, slots=True)
+class SwitchTarget:
+    bridge: str
+    mode: str  # "toggle", "permanent_open", or "permanent_closed"
+
+@dataclass(frozen=True, slots=True)
+class Switch:
+    cell: Cell
+    type: str  # "soft", "heavy", or "split"
+    targets: tuple[SwitchTarget, ...] = ()
+    split_cells: tuple[Cell, Cell] | None = None
+```
 
 `Board` methods:
 
 - `in_bounds(cell: Cell) -> bool`
 - `tile_at(cell: Cell) -> TileType` — raises `IndexError` if `cell` is out of bounds.
 
-`TileType` (defined in `game/board.py`): `FLOOR` (`#`), `VOID` (`.`), `GOAL` (`G`), `FRAGILE` (`F`), `BRIDGE` (`B`), `SOFT_SWITCH` (`o`), `HEAVY_SWITCH` (`x`), `SPLIT_SWITCH` (`P`). The start char `S` maps to `FLOOR`.
+`TileType` (defined in `game/tiles.py`): `FLOOR` (`#`), `VOID` (`.`), `GOAL` (`G`), `FRAGILE` (`F`), `BRIDGE` (`B`), `SOFT_SWITCH` (`o`), `HEAVY_SWITCH` (`x`), `SPLIT_SWITCH` (`P`). The start char `S` maps to `FLOOR`.
 
 Loader functions:
 
 - `load_board(path: str | Path) -> Board` — reads and validates a JSON level file.
 - `parse_board(data: dict) -> Board` — validates level data from a dict (used by tests).
 
-Loader errors:
+`parse_board` validates grid shape/symbols and bridge/switch metadata against the grid: each `B` tile and each `o`/`x`/`P` tile must have exactly one matching metadata entry; bridge IDs must be unique; bridge references and target modes must be valid; and split destinations must be distinct in-bounds cells. Loader errors:
 
-- `ValueError` — missing/empty grid, zero-length row, ragged rows, invalid character, or a number of `S`/`G` different from exactly one.
+- `ValueError` — invalid grid, tile, start/goal count, bridge/switch metadata, or split destination.
 - `TypeError` — `bridges`/`switches` is not a list; JSON root is not an object.
 - `FileNotFoundError` — level file does not exist.
 
@@ -220,7 +257,7 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 
 ### 6.3 Level JSON Format (`CONFIRMED`)
 
-- Approved and implemented in `game/board.py` as proposed: character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) plus metadata lists `bridges`/`switches`.
+- Approved wire/input format: character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) plus metadata lists `bridges`/`switches`. `game/board.py` parses and validates this format; `server.py` uses the resulting `Board`.
 - TV2 owns the other level files; every level must use this schema so it stays reusable across all solvers.
 - If the schema ever changes, the loader, this doc, and `docs/engine.md` change together.
 
@@ -265,10 +302,7 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
       "cell": [1, 8],
       "type": "split",
       "targets": [],
-      "split_cells": [
-        [4, 0],
-        [6, 10]
-      ]
+      "split_cells": [[4, 0], [6, 10]]
     }
   ]
 }
@@ -278,37 +312,39 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 - `start` and `goal` are **not** stored in the file. Exactly one `S` and one `G` are required; `parse_board` derives `board.start`/`board.goal` from them (the `S` tile maps to `FLOOR`).
 - `grid`: list of equal-length strings; `rows`/`cols` are derived (this level is 7×20).
 - `bridges`: one entry per `B` tile (`{"id", "cell", "initial"}`; `initial` ∈ `{"open", "closed"}`). A multi-tile bridge is expressed as one entry per cell (here `A1`/`A2`, `C1`/`C2`).
-- `switches`: `{"cell", "type" ∈ {"soft","heavy","split"}, "targets": [{"bridge", "mode"}], "split_cells"}` with `mode` ∈ `{"toggle","permanent_open","permanent_closed"}`; `split_cells` (two cells) is present only for `split`.
-- `bridges`/`switches` are deep-validated against the grid when `Engine(board)` is constructed (`build_mechanics`), not by `parse_board`; any mismatch raises `ValueError`.
+- `switches`: each entry has `cell` and `type` ∈ `{"soft","heavy","split"}`. `targets` is an optional list of `{"bridge", "mode"}` entries; if omitted it defaults to `[]`. Each mode is in `{"toggle","permanent_open","permanent_closed"}`. A `split` switch may omit `targets` or set it to `[]`, but cannot target bridges; it must provide `split_cells` (two cells). Non-split switches must not define `split_cells`.
+- `bridges`/`switches` are validated against the grid by `parse_board`.
 
-### 6.4 Advanced-Tile Behavior in Engine (`CONFIRMED`)
+### 6.4 Advanced-Tile Behavior (implemented)
 
-- Implemented by TV2 in `game/tiles.py`, `game/switches.py`, `game/split_block.py` and hooked into `Engine`.
-- Ô `FRAGILE`: vỡ khi khối đứng thẳng; nâng đỡ khi khối nằm hoặc khối 1x1.
+- Implemented by `game/engine.py` and its board/tile/switch helpers, and exposed through the HTTP layer.
+- `FRAGILE`: unsupported under a standing block or single split cube; supported under a lying block. Fragile tiles do not persist damage.
 - Ô `BRIDGE`: chỉ nâng đỡ khi mở.
 - Công tắc `soft`, `heavy`, `split`: kích hoạt và cập nhật trạng thái cầu / tách khối.
 
-### 6.5 TV2 Extension Hooks in `Engine` (`CONFIRMED — IMPLEMENTED`)
+### 6.5 TV2 Engine Mechanics
 
-TV2 đã tích hợp toàn bộ logic cơ chế nâng cao vào `Engine` mà không làm thay đổi public API:
+`Engine.transition()` owns the rules without changing the public wire API. The implementation separates geometry, support checks, and switch effects:
 
-- `_roll(state, action) -> tuple[Cell, Orientation] | None`: Pure geometry roll table.
-- `_cells_supported(state, cells) -> bool`: Kiểm tra ô trong bảng, không phải VOID, không phải fragile bị vỡ, và cầu đang mở.
-- `_apply_tile_effects(state, new_state) -> State`: Áp dụng hiệu ứng công tắc, chuyển đổi trạng thái cầu, xử lý split switch và tự động merge.
+- `Engine._roll(position, orientation, action) -> tuple[Cell, Orientation] | None`: Pure geometry roll table for a standard block.
+- `Engine._move_split_cube(state, action) -> tuple[State, str | None]`: Moves the active cube or reports an illegal collision/action.
+- `support_failure(board, cells, orientation, bridge_states, split_mode) -> str | None` in `game/tiles.py`: Checks bounds and tile support.
+- `activated_switches(board, state)` and `update_bridge_states(board, current, activated)` in `game/switches.py`: Resolve switch activation and apply bridge targets.
+- `Engine._merge_if_adjacent(state) -> State`: Merges adjacent split cubes back into the standard block.
 
-Logic split-mode và `SWITCH_CUBE` đã được TV2 hoàn thiện trực tiếp trong `transition`.
+The engine applies switch effects deterministically: it inspects the resulting block's occupied cells in canonical `occupied_cells` order (in split mode, only the active cube's cell), then applies each switch's targets in their listed order. This also defines the order when multiple switches update the same bridge.
 
 ### 6.6 Core Rule Notes
 
-- `legal_actions` checks `transition` for each action in the fixed order `UP, DOWN, LEFT, RIGHT, SWITCH_CUBE` and returns those that are not `None`.
+- `legal_actions` checks `transition` for each `Action` in enum declaration order (`UP, DOWN, LEFT, RIGHT, SWITCH_CUBE`) and returns only actions whose result has `TransitionStatus.OK`; `FALL` and `ILLEGAL` are excluded. A goal state is not treated as terminal by this method.
 - `SWITCH_CUBE` chỉ hợp lệ khi `split_mode == True`.
 - Cơ chế nâng cao: `FRAGILE`, `BRIDGE`, switches (`soft`, `heavy`, `split`) đã được kích hoạt đầy đủ.
 
 ### 6.7 Stream Dependency Summary
 
-| Stream                   | Can rely on now                                                                         | Must wait for                        |
-| ------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------ |
-| TV2 (advanced mechanics) | Full Engine API, advanced mechanics, levels 1–10 completed                              | —                                    |
-| TV3 (BFS/DFS)            | Full Engine API (core + advanced), `step_cost == 1.0`, levels 1–10                      | —                                    |
-| TV4 (UCS/A\*)            | Full Engine API (core + advanced), levels 1–10                                          | Final cost function (6.2)            |
-| TV5 (GUI/integration)    | `State.to_dict` shape, `engine.board`, levels 1–10, `SearchResult` contract (Section 5) | Solver outputs and final cost values |
+| Stream                   | Can rely on now                                                                                | Must wait for                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics                            | —                                    |
+| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract                                       | Solver modules and level set         |
+| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                                             | Solver modules and final cost rule   |
+| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema                                     | Solver outputs and final cost values |

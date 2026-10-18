@@ -1,9 +1,7 @@
 # Bloxorz GUI & Integration — API Contract & Architecture Specifications
 
-> **Target Audience:** TV5 (GUI & Integration), TV1/TV2 (Core & Advanced Engine), TV3/TV4 (AI Solvers).
-> **Status:** Draft v5 — adapter deltas documented (2026-10-17).
-> **Approved 2026-10-17:** `Engine.transition()` returns `TransitionResult` (§3.3), now also documented in `docs/api.md` §4. Implementation in `game/engine.py` and the engine tests is **pending (TV1/TV2)**.
-> TV2-owned semantics (bridge/switch metadata, `bridge_states`, fragile, split mode, fall rules) are **CONFIRMED** in §3.1–§3.3. Remaining `PENDING` items are non-TV2; see §10.
+> **Target Audience:** TV5 (GUI & Integration), TV1/TV2 (Core & Advanced Engine), TV3/TV4 (AI Solvers).  
+> **Status:** GUI/backend wire contract. TV2 advanced-tile semantics and the `TransitionResult` response are confirmed. `server.py` exposes the HTTP adapter; the Python engine API is documented in `docs/api.md`.
 
 ---
 
@@ -44,19 +42,22 @@ server.py               # FastAPI backend at repo root (owned by TV1/TV2)
 levels/                 # shared level JSON files
 ```
 
-`gui/` (Python placeholder) is removed; replaced by `web/`.
-GUI is owned by TV5 and written in JavaScript (Three.js). Algorithms and the engine remain in Python. The two sides communicate only through the HTTP endpoints in §2.1.
+The tree above is the target modular layout. The current GUI is consolidated in `gui/index.html` with inline JavaScript; it is owned by TV5 and uses Three.js. Algorithms and the engine remain in Python. The two sides communicate through the HTTP endpoints in §2.1, and the current server serves the GUI and `/assets/*` from the same origin.
+
+**Repository implementation note (2026-10-18):** `server.py` implements the HTTP adapter with FastAPI and serves `gui/index.html` at `/`, plus files under `assets/` at `/assets/*`. It serializes board/state data and transition results using this wire contract. `game/engine.py` implements the class-based `Engine` API; `/solve` remains unavailable until solver implementations are integrated.
 
 ### 2.1 Backend HTTP API
 
 Default base URL `http://127.0.0.1:8000`; routes have **no `/api` prefix**. JSON in, JSON out (UTF-8).
 
-| Method | Path             | Request Body                                          | Success Response                                      |
-| :----- | :--------------- | :---------------------------------------------------- | :---------------------------------------------------- |
-| GET    | `/levels`        | —                                                     | `["level1.json", ...]`                                |
-| GET    | `/levels/{name}` | —                                                     | `{"board": {...}, "initial_state": {...}}` (§3.1–3.2) |
-| POST   | `/transition`    | `{"level": name, "state": {...}, "action": "UP"}`     | `TransitionResult` JSON (§3.3)                        |
-| POST   | `/solve`         | `{"level": name, "algorithm": "BFS", "state": {...}}` | `SearchResult` JSON (§4.2)                            |
+| Method | Path | Request Body | Success Response |
+| :--- | :--- | :--- | :--- |
+| GET | `/levels` | — | `["level1.json", ...]` |
+| GET | `/levels/{name}` | — | `{"board": {...}, "initial_state": {...}}` (§3.1–3.2) |
+| POST | `/transition` | `{"level": name, "state": {...}, "action": "UP"}` | `TransitionResult` JSON (§3.3) |
+| POST | `/solve` | `{"level": name, "algorithm": "BFS", "state": {...}}` | `SearchResult` JSON (§4.2) |
+
+The same-origin GUI entry point is `GET /`; static game assets are served from `/assets/*`.
 
 Rules:
 
@@ -68,7 +69,7 @@ Rules:
 - `action` is one of `"UP" | "DOWN" | "LEFT" | "RIGHT" | "SWITCH_CUBE"`. This encoding is shared by `/transition` requests, `SearchResult.path`, and client-side replay.
 - `algorithm` is one of `"BFS" | "DFS" | "UCS" | "ASTAR"`; API name `ASTAR` maps to display label `A*`.
 - Application outcomes of a move (`ok`, `fall`, `illegal`) are always HTTP `200`; they are game results, not HTTP errors.
-- **CORS:** if the GUI is served from a different origin than the API, the backend must allow that origin (documented dev allow-list). Otherwise FastAPI may serve `web/` statically so GUI and API share one origin. Which of the two is used: `PENDING (TV5/lead)`.
+- **CORS:** the current development server serves `gui/index.html` and the API from the same origin, so CORS is not needed for the supported local workflow. A split-origin deployment must configure an explicit CORS allow-list.
 - Request bodies are small (a state is a few hundred bytes); the server may reject bodies above a small configurable limit (default 256 KB) with `400 REQUEST_TOO_LARGE`.
 - Every response carries the full state; the client never merges partial deltas.
 
@@ -85,14 +86,14 @@ Every non-2xx response body is JSON; the GUI can parse every body unconditionall
 }
 ```
 
-| Status | Example codes                                                                               | When                                                                                      |
-| :----- | :------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------- |
-| `400`  | `INVALID_JSON`, `INVALID_FIELD`, `INVALID_ACTION`, `UNKNOWN_ALGORITHM`, `REQUEST_TOO_LARGE` | Malformed request or illegal value                                                        |
-| `404`  | `LEVEL_NOT_FOUND`, `NOT_FOUND`                                                              | Unknown level or route                                                                    |
-| `422`  | `INVALID_STATE`                                                                             | Well-formed JSON but not a valid state for the given board (e.g. anchor outside the grid) |
-| `500`  | `INTERNAL_ERROR`                                                                            | Unexpected server error; never leaks stack traces or secrets                              |
-| `501`  | `SOLVER_NOT_AVAILABLE`                                                                      | Algorithm not implemented yet (TV3/TV4 pending)                                           |
-| `504`  | `SOLVER_TIMEOUT`                                                                            | Search exceeded the time budget (§4.3)                                                    |
+| Status | Example codes | When |
+| :--- | :--- | :--- |
+| `400` | `INVALID_JSON`, `INVALID_FIELD`, `INVALID_ACTION`, `UNKNOWN_ALGORITHM`, `REQUEST_TOO_LARGE`, `INVALID_LEVEL` | Malformed request, illegal value, or invalid level data |
+| `404` | `LEVEL_NOT_FOUND`, `NOT_FOUND` | Unknown level or route |
+| `422` | `INVALID_STATE` | Well-formed JSON but not a valid state for the given board (e.g. anchor outside the grid) |
+| `500` | `INTERNAL_ERROR` | Unexpected server error; never leaks stack traces or secrets |
+| `501` | `SOLVER_NOT_AVAILABLE` | Algorithm not implemented yet (TV3/TV4 pending) |
+| `504` | `SOLVER_TIMEOUT` | Search exceeded the time budget (§4.3) |
 
 - `fall` and `illegal` move outcomes are **not** HTTP errors (HTTP 200, §3.3).
 - `500` responses use a generic message; details go to the server log only.
@@ -119,13 +120,7 @@ initial_state: State = engine.get_initial_state()
     "name": "level1",
     "rows": 5,
     "cols": 10,
-    "grid": [
-      "..###.....",
-      "###S##....",
-      "####.###..",
-      "....#####.",
-      ".....#G##."
-    ],
+    "grid": ["..###.....", "###S##....", "####.###..", "....#####.", ".....#G##."],
     "start": [1, 3],
     "goal": [4, 6],
     "bridges": [],
@@ -151,17 +146,17 @@ initial_state: State = engine.get_initial_state()
 - Loader validation surfaces as request errors: equal-length rows, valid characters, exactly one `S` and one `G`; `bridges`/`switches` must be lists.
 - Tile symbols (case-sensitive):
 
-| Char | `TileType`     | Meaning                                     |
-| :--- | :------------- | :------------------------------------------ |
-| `#`  | `FLOOR`        | Normal floor                                |
-| `.`  | `VOID`         | Hole; moving onto it is a fall              |
-| `S`  | `FLOOR`        | Start cell (see `start`)                    |
-| `G`  | `GOAL`         | Goal tile                                   |
-| `F`  | `FRAGILE`      | TV2: breaks / drops the block when standing |
-| `B`  | `BRIDGE`       | TV2: bridge tile controlled by switches     |
-| `o`  | `SOFT_SWITCH`  | TV2: soft switch                            |
-| `x`  | `HEAVY_SWITCH` | TV2: heavy switch                           |
-| `P`  | `SPLIT_SWITCH` | TV2: splits the block                       |
+| Char | `TileType` | Meaning |
+| :--- | :--- | :--- |
+| `#` | `FLOOR` | Normal floor |
+| `.` | `VOID` | Hole; moving onto it is a fall |
+| `S` | `FLOOR` | Start cell (see `start`) |
+| `G` | `GOAL` | Goal tile |
+| `F` | `FRAGILE` | TV2: breaks / drops the block when standing |
+| `B` | `BRIDGE` | TV2: bridge tile controlled by switches |
+| `o` | `SOFT_SWITCH` | TV2: soft switch |
+| `x` | `HEAVY_SWITCH` | TV2: heavy switch |
+| `P` | `SPLIT_SWITCH` | TV2: splits the block |
 
 Coordinates everywhere in the API are `[row, col]`, origin top-left, row downward, col rightward (3D mapping in §9).
 
@@ -171,55 +166,47 @@ The GUI must never infer bridge/switch relationships from tile order or tile cou
 
 ```json
 {
-  "bridges": [{ "id": "bridge_a", "cell": [1, 2], "initial": "closed" }],
+  "bridges": [
+    { "id": "bridge_a", "cell": [1, 2], "initial": "closed" }
+  ],
   "switches": [
-    {
-      "cell": [1, 1],
-      "type": "soft",
-      "targets": [{ "bridge": "bridge_a", "mode": "toggle" }]
-    },
-    {
-      "cell": [2, 0],
-      "type": "split",
-      "split_cells": [
-        [2, 1],
-        [2, 3]
-      ]
-    }
+    { "cell": [1, 1], "type": "soft",  "targets": [ { "bridge": "bridge_a", "mode": "toggle" } ] },
+    { "cell": [2, 0], "type": "split", "split_cells": [[2, 1], [2, 3]] }
   ]
 }
 ```
 
-| Object | Field            | Type                                                 | Required                               | Meaning                                                        |
-| :----- | :--------------- | :--------------------------------------------------- | :------------------------------------- | :------------------------------------------------------------- |
-| bridge | `id`             | string                                               | yes                                    | Unique per bridge entry                                        |
-| bridge | `cell`           | `[row, col]`                                         | yes                                    | The `B` grid cell this entry controls (one entry per `B` tile) |
-| bridge | `initial`        | `"open" \| "closed"`                                 | yes                                    | Initial state (`open` = passable)                              |
-| switch | `cell`           | `[row, col]`                                         | yes                                    | Must equal the grid tile position                              |
-| switch | `type`           | `"soft" \| "heavy" \| "split"`                       | yes                                    | Must match the grid char (`o` / `x` / `P`)                     |
-| switch | `targets`        | `[{ "bridge": id, "mode": ... }, ...]`               | yes (may be `[]`; omitted for `split`) | Bridges affected on activation                                 |
-| switch | `targets[].mode` | `"toggle" \| "permanent_open" \| "permanent_closed"` | yes per target                         | Effect applied to that bridge                                  |
-| switch | `split_cells`    | `[[row, col], [row, col]]`                           | yes for `split`                        | The two cells where the cubes appear after the split           |
+| Object | Field | Type | Required | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| bridge | `id` | string | yes | Unique per bridge entry |
+| bridge | `cell` | `[row, col]` | yes | The `B` grid cell this entry controls (one entry per `B` tile) |
+| bridge | `initial` | `"open" \| "closed"` | yes | Initial state (`open` = passable) |
+| switch | `cell` | `[row, col]` | yes | Must equal the grid tile position |
+| switch | `type` | `"soft" \| "heavy" \| "split"` | yes | Must match the grid char (`o` / `x` / `P`) |
+| switch | `targets` | `[{ "bridge": id, "mode": ... }, ...]` | no; defaults to `[]` | Bridges affected on activation |
+| switch | `targets[].mode` | `"toggle" \| "permanent_open" \| "permanent_closed"` | yes per target | Effect applied to that bridge |
+| switch | `split_cells` | `[[row, col], [row, col]]` | yes for `split` | The two cells where the cubes appear after the split |
 
 Validation rules (loader):
 
 - One bridge entry per `B` grid tile: every `B` tile has exactly one entry with that `cell`, and no two entries share a cell.
 - Every `o` / `x` / `P` grid tile has exactly one switch entry with the same `cell` and matching `type`, and vice versa.
 - `id`s are unique; all cells are in bounds; `initial` ∈ `{"open", "closed"}`; each target's `bridge` must exist; `mode` ∈ `{"toggle", "permanent_open", "permanent_closed"}`.
+- `targets` may be omitted for any switch and defaults to `[]`; if supplied, it must be an array. Split switches may not have any bridge targets.
 - `split` requires `split_cells` (two distinct in-bounds cells); non-`split` switches must not define `split_cells`.
-- `bridges`/`switches` are `[]` when the level has none; any mismatch raises `ValueError` at `Engine` construction (`build_mechanics`).
+- `bridges`/`switches` are `[]` when the level has none; `parse_board` validates their metadata against the grid and raises `ValueError` for mismatches before an `Engine` is constructed.
 - `bridge_states` follows `bridges` order: `bridge_states[i]` ↔ `bridges[i].id`, initialized from `initial` (§3.2).
 
 #### Switch Activation & Bridge Effects — CONFIRMED (2026-10-17)
 
-| Switch        | Triggers when                                                                                                         | Effect                                                          |
-| :------------ | :-------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------- |
-| `soft` (`o`)  | After a move, any **occupied cell** is the switch cell (any orientation; in split mode the active cube's cell counts) | Apply each target's `mode` to its bridge                        |
-| `heavy` (`x`) | After a move the state is a **non-split `STANDING`** block exactly on the switch cell                                 | Same                                                            |
-| `split` (`P`) | After a move the state is a **non-split `STANDING`** block exactly on the switch cell                                 | Teleport + split to `split_cells` (§3.3); never affects bridges |
+| Switch | Triggers when | Effect |
+| :--- | :--- | :--- |
+| `soft` (`o`) | After a move, any **occupied cell** is the switch cell (any orientation; in split mode the active cube's cell counts) | Apply each target's `mode` to its bridge |
+| `heavy` (`x`) | After a move the state is a **non-split `STANDING`** block exactly on the switch cell | Same |
+| `split` (`P`) | After a move the state is a **non-split `STANDING`** block exactly on the switch cell | Teleport + split to `split_cells` (§3.3); never affects bridges |
 
 - `toggle` flips each linked bridge; `permanent_open` sets it open (`true`); `permanent_closed` sets it closed (`false`).
-- If several switches are pressed in one move, they are applied in the order the occupied cells are checked.
+- If one move activates multiple switches, inspect the resulting non-split block's occupied cells in their canonical `occupied_cells` order (standing: anchor; horizontal: left cell then right cell; vertical: top cell then bottom cell). Apply each activated switch's targets in the order listed in that switch's `targets` array. In split mode, inspect only the active cube's cell. This ordering determines the result when multiple effects update the same bridge.
 - An open bridge is floor; a **closed bridge is unsupported** like a void cell (fall reason `bridge_closed`).
 - In split mode only the **active** cube's cell is checked, so a stationary cube does not re-press a switch; a split cube can trigger `soft` only, never `heavy` or `split`.
 
@@ -233,15 +220,15 @@ Validation rules (loader):
 
 The GUI renders from the state JSON returned by `/transition` and `GET /levels/{name}`. The client never computes `occupied_cells` itself.
 
-| State field                         | Type                                       | GUI usage                                                                                      |
-| :---------------------------------- | :----------------------------------------- | :--------------------------------------------------------------------------------------------- |
-| `block_position`                    | `[row, col]`                               | Anchor = top-left occupied cell; in split mode = the active cube's cell                        |
-| `orientation`                       | `"STANDING" \| "HORIZONTAL" \| "VERTICAL"` | `HORIZONTAL` = along a row, `VERTICAL` = along a column; in split mode always `STANDING`       |
-| `occupied_cells`                    | `[[row, col], ...]`                        | Cells covered by the block (split mode: cube 1 cell, then cube 2 cell), derived by the backend |
-| `bridge_states`                     | `[bool, ...]`                              | Bridge open (`true`) / closed (`false`); index `i` ↔ `board.bridges[i].id`                     |
-| `split_mode`                        | `bool`                                     | Block is split into two 1×1×1 cubes                                                            |
-| `cube1_position` / `cube2_position` | `[row, col] \| null`                       | Cube positions when `split_mode == true`                                                       |
-| `active_cube`                       | `1 \| 2 \| null`                           | Controllable cube when `split_mode == true`                                                    |
+| State field | Type | GUI usage |
+| :--- | :--- | :--- |
+| `block_position` | `[row, col]` | Anchor = top-left occupied cell; in split mode = the active cube's cell |
+| `orientation` | `"STANDING" \| "HORIZONTAL" \| "VERTICAL"` | `HORIZONTAL` = along a row, `VERTICAL` = along a column; in split mode always `STANDING` |
+| `occupied_cells` | `[[row, col], ...]` | Cells covered by the block (split mode: cube 1 cell, then cube 2 cell), derived by the backend |
+| `bridge_states` | `[bool, ...]` | Bridge open (`true`) / closed (`false`); index `i` ↔ `board.bridges[i].id` |
+| `split_mode` | `bool` | Block is split into two 1×1×1 cubes |
+| `cube1_position` / `cube2_position` | `[row, col] \| null` | Cube positions when `split_mode == true` |
+| `active_cube` | `1 \| 2 \| null` | Controllable cube when `split_mode == true` |
 
 **State JSON shape (HTTP):**
 
@@ -260,7 +247,7 @@ The GUI renders from the state JSON returned by `/transition` and `GET /levels/{
 
 Semantics and guarantees:
 
-- `State.to_dict()` produces every field above **except** `occupied_cells`; the backend adds it using `state.occupied_cells()`. On input the backend ignores extra keys such as `occupied_cells`, so a state received from the server can be sent back unchanged.
+- `State.to_dict()` produces every state field except `occupied_cells`; the backend adds it using `state.occupied_cells()`. Every `/transition` and `/solve` request must include all eight fields shown in the JSON shape, including `occupied_cells` and explicit `null` values for unused cube fields. The server validates `occupied_cells` as an array of integer `[row, col]` pairs and requires it to exactly match the cells derived from the other state fields, in the canonical order below. A state returned by the server can therefore be sent back unchanged. Unknown extra state keys are ignored.
 - `occupied_cells` order is stable: `STANDING` → `[(r,c)]`; `HORIZONTAL` → `[(r,c),(r,c+1)]`; `VERTICAL` → `[(r,c),(r+1,c)]`. This makes state comparison and tests deterministic.
 - Tuples serialize as JSON arrays `[row, col]`, never as strings.
 - `split_mode == false`: `cube1_position`, `cube2_position` and `active_cube` are `null`; `block_position`/`orientation` describe the whole block; `occupied_cells` follows the stable order above.
@@ -268,13 +255,14 @@ Semantics and guarantees:
 - **Merge (CONFIRMED):** after a cube move, if the two cubes occupy orthogonally adjacent cells they merge into the standard block: `HORIZONTAL` when they share a row, `VERTICAL` when they share a column, anchor = the top-left of the two cells, `split_mode = false`, cube fields `null`.
 - **Goal (CONFIRMED):** a split state can never win; the cubes must merge and the block must stand on `G` (`is_goal` requires `not split_mode`).
 - `bridge_states` CONFIRMED representation: exactly one entry per bridge in `board.bridges`, in the same order, initialized from `initial`, including bridges that have not changed state (`[]` when the level has no bridges). `State.to_dict/from_dict`, `docs/api.md` and this section change together if it ever changes.
+- The server rejects a state with a missing required field as `400 INVALID_FIELD`; malformed or inconsistent state data is `422 INVALID_STATE`. `bridge_states` must contain exactly one boolean per board bridge. Every occupied cell must be inside the board. In split mode, `block_position` must equal the position of `active_cube`; the two cube positions must be distinct, and `orientation` must be `STANDING`. Outside split mode, both cube positions and `active_cube` must be `null`.
 - There is **no `status` field and no `broken_tiles` field** in the state. The engine has no won/lost state and fragile tiles are non-persistent by design (§3.1): `WON`/`LOST` are GUI modes only (§3.3), a fall never mutates the board, and re-entering a fragile cell behaves the same every time (`fragile_standing`).
 - Round-trip guarantee (backend): any state the server emitted can be posted back and equals its Python `State` after `from_dict`.
 
 ### 3.3 Movement & Transition Handling (backend, Python)
 
 ```python
-# game/engine.py — PENDING implementation (TV1/TV2); exported from `game`
+# game/engine.py — exported from `game`
 result: TransitionResult = engine.transition(current_state, action)
 ```
 
@@ -292,19 +280,19 @@ class TransitionResult:
     reason: str | None = None
 ```
 
-HTTP JSON encoding: `status` (lowercase), `state` (State JSON or `null`), `isGoal` (camelCase), `reason`. Until the engine change lands, the backend may build this envelope from the current `engine.transition() -> State | None`; the wire contract below does not change.
+HTTP JSON encoding: `status` (lowercase), `state` (State JSON or `null`), `isGoal` (camelCase), `reason`. The backend serializes the `TransitionResult` returned by `engine.transition()` into this envelope.
 
 `reason` values (lowercase, fixed):
 
-| Status    | `reason`                | Meaning                                                     |
-| :-------- | :---------------------- | :---------------------------------------------------------- |
-| `fall`    | `void`                  | A cell the block/cube would occupy is `VOID`                |
-| `fall`    | `off_board`             | A cell the block/cube would occupy is outside the grid      |
-| `fall`    | `bridge_closed`         | A cell the block/cube would occupy is a closed `BRIDGE`     |
-| `fall`    | `fragile_standing`      | A `STANDING` block or a single cube lands on `FRAGILE`      |
-| `illegal` | `switch_cube_not_split` | `SWITCH_CUBE` while `split_mode == false`                   |
-| `illegal` | `cube_collision`        | In split mode, a cube would move into the other cube's cell |
-| `illegal` | `action_not_allowed`    | Any other disallowed action                                 |
+| Status | `reason` | Meaning |
+| :--- | :--- | :--- |
+| `fall` | `void` | A cell the block/cube would occupy is `VOID` |
+| `fall` | `off_board` | A cell the block/cube would occupy is outside the grid |
+| `fall` | `bridge_closed` | A cell the block/cube would occupy is a closed `BRIDGE` |
+| `fall` | `fragile_standing` | A `STANDING` block or a single cube lands on `FRAGILE` |
+| `illegal` | `switch_cube_not_split` | `SWITCH_CUBE` while `split_mode == false` |
+| `illegal` | `cube_collision` | In split mode, a cube would move into the other cube's cell |
+| `illegal` | `action_not_allowed` | Any other disallowed action |
 
 Precedence when several apply: `off_board` → `void` → `bridge_closed` → `fragile_standing`. With TV2 advanced mechanics implemented, all fall/illegal reasons above apply; the plain-core engine (TV1 only) produced only `switch_cube_not_split`.
 
@@ -318,10 +306,7 @@ Precedence when several apply: `off_board` → `void` → `bridge_closed` → `f
   "state": {
     "block_position": [1, 4],
     "orientation": "HORIZONTAL",
-    "occupied_cells": [
-      [1, 4],
-      [1, 5]
-    ],
+    "occupied_cells": [[1, 4], [1, 5]],
     "bridge_states": [],
     "split_mode": false,
     "cube1_position": null,
@@ -371,15 +356,15 @@ Additional rules:
 - **Split mode (CONFIRMED):** the active cube moves like a 1×1 cube; a move that ends unsupported is a `fall` (either cube falling loses the stage); a move into the other cube's cell is `illegal` (`cube_collision`); cubes merge automatically when adjacent (§3.2).
 - Undo and restart are client-side and valid in every mode, including after a `fall` and after `WON` (§7).
 - **Split switch (CONFIRMED):** when a non-split `STANDING` block lands exactly on a `P` cell, the block is teleported and split: cube 1 → `split_cells[0]`, cube 2 → `split_cells[1]`, `active_cube = 1`, `split_mode = true`. Both destination cells must be supported under the current bridge states; otherwise the result is a `fall` with the destination's reason.
-- **`SWITCH_CUBE` (CONFIRMED):** legal only when `split_mode == true`; it only flips `active_cube` (1 ↔ 2) and changes nothing else. It counts as one step in `history`, `SearchResult.path`, `solution_length`, and `step_cost`.
-- **Transition events: not used** (§1.6). Everything the GUI needs is `(previous state, action, TransitionResult)`.
+- **`SWITCH_CUBE` (CONFIRMED):** legal only when `split_mode == true`; it flips `active_cube` (1 ↔ 2) and updates `block_position` to the newly active cube's cell. Neither cube moves. It counts as one step in `history`, `SearchResult.path`, `solution_length`, and `step_cost`.
+- **Transition events: not used** (§1, principle 6). Everything the GUI needs is `(previous state, action, TransitionResult)`.
 
 #### Transition Pipeline — CONFIRMED (order matters)
 
 1. Compute the rolled geometry (active cube move when `split_mode == true`).
 2. If any resulting occupied cell is off-board → `fall` (`off_board`).
 3. Support check under the **current** bridge states: `VOID` → `void`; closed `BRIDGE` → `bridge_closed`; `STANDING` block/cube on `FRAGILE` → `fragile_standing`.
-4. Apply tile effects in this order: switch activations (in `switches` order) → bridge state updates → split-switch teleport/split or cube merge.
+4. Apply tile effects in this order: inspect the resulting occupied cells in canonical `occupied_cells` order (split mode: active cube only), activate each switch found and apply its targets in listed order → update bridge states → split-switch teleport/split or cube merge.
 5. Re-check support after bridge updates: if a bridge that just closed is under the block/cubes → `fall` (`bridge_closed`).
 6. Otherwise `ok`.
 
@@ -477,15 +462,15 @@ Rules:
 
 Upon receiving `SearchResult`, the GUI updates the metrics sidebar:
 
-| Metric Label        | Source Field             | Display Format                                   |
-| :------------------ | :----------------------- | :----------------------------------------------- |
-| **Status**          | `result.solved`          | `Solved` (Green) / `No Solution` (Red)           |
-| **Algorithm**       | Algorithm choice         | `BFS` / `DFS` / `UCS` / `A*`                     |
-| **Solution Length** | `result.solution_length` | Integer steps (e.g. `24 moves`)                  |
-| **Total Cost**      | `result.total_cost`      | Float / Int (e.g. `24.0`)                        |
-| **Execution Time**  | `result.search_time`     | Seconds (`{time:.4f} s` or `{time*1000:.1f} ms`) |
-| **Memory Peak**     | `result.memory_usage`    | Megabytes (`{memory:.2f} MB`)                    |
-| **Nodes Expanded**  | `result.expanded_nodes`  | Integer (`{nodes:,}`)                            |
+| Metric Label | Source Field | Display Format |
+| :--- | :--- | :--- |
+| **Status** | `result.solved` | `Solved` (Green) / `No Solution` (Red) |
+| **Algorithm** | Algorithm choice | `BFS` / `DFS` / `UCS` / `A*` |
+| **Solution Length** | `result.solution_length` | Integer steps (e.g. `24 moves`) |
+| **Total Cost** | `result.total_cost` | Float / Int (e.g. `24.0`) |
+| **Execution Time** | `result.search_time` | Seconds (`{time:.4f} s` or `{time*1000:.1f} ms`) |
+| **Memory Peak** | `result.memory_usage` | Megabytes (`{memory:.2f} MB`) |
+| **Nodes Expanded** | `result.expanded_nodes` | Integer (`{nodes:,}`) |
 
 ---
 
@@ -496,7 +481,6 @@ Upon receiving `SearchResult`, the GUI updates the metrics sidebar:
 Manages the gameplay state machine, user inputs, and replay coordination. It owns the session state: `currentState`, `initialState`, `history`, `path`, `replayIndex`, `mode` (§7).
 
 #### State Machine Modes (String Constants):
-
 - `"MANUAL_PLAY"`: User directly controls the block using keyboard.
 - `"SEARCHING"`: Solver is executing in the backend; UI displays a loading spinner.
 - `"REPLAYING"`: Solution path is automatically being stepped through with a timer.
@@ -506,7 +490,6 @@ Manages the gameplay state machine, user inputs, and replay coordination. It own
 - `"ERROR"`: Replay or transition failed; message shown with the failing step and reason.
 
 #### Key Controller Methods:
-
 ```javascript
 // web/src/controller.js
 export class GameController {
@@ -560,15 +543,15 @@ export class UI {
 
 ### 6.1 Keyboard Controls
 
-| Key                | Action         | Description                                                                                                    |
-| :----------------- | :------------- | :------------------------------------------------------------------------------------------------------------- |
-| `ArrowUp` / `W`    | `Action.UP`    | Roll block Up                                                                                                  |
-| `ArrowDown` / `S`  | `Action.DOWN`  | Roll block Down                                                                                                |
-| `ArrowLeft` / `A`  | `Action.LEFT`  | Roll block Left                                                                                                |
-| `ArrowRight` / `D` | `Action.RIGHT` | Roll block Right                                                                                               |
-| `Space`            | Multi-mode     | `SWITCH_CUBE` in `MANUAL_PLAY` **only when `split_mode == true`**; Play/Pause in `REPLAYING` / `REPLAY_PAUSED` |
-| `R`                | Restart        | Reset to `initialState` and clear history                                                                      |
-| `U` / `Backspace`  | Undo           | Undo one step (client-side, §7)                                                                                |
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| `ArrowUp` / `W` | `Action.UP` | Roll block Up |
+| `ArrowDown` / `S` | `Action.DOWN` | Roll block Down |
+| `ArrowLeft` / `A` | `Action.LEFT` | Roll block Left |
+| `ArrowRight` / `D` | `Action.RIGHT` | Roll block Right |
+| `Space` | Multi-mode | `SWITCH_CUBE` in `MANUAL_PLAY` **only when `split_mode == true`**; Play/Pause in `REPLAYING` / `REPLAY_PAUSED` |
+| `R` | Restart | Reset to `initialState` and clear history |
+| `U` / `Backspace` | Undo | Undo one step (client-side, §7) |
 
 - Movement keys are ignored while `SEARCHING` / `REPLAYING`; the user must pause or wait.
 - Undo and Restart work in every mode, including `LOST` and `WON`.
@@ -602,30 +585,28 @@ export class UI {
 
 ```javascript
 async function playSolutionStep() {
-  if (replayIndex >= path.length) {
-    mode = "WON";
-    return;
-  }
+    if (replayIndex >= path.length) {
+        mode = "WON";
+        return;
+    }
 
-  const action = path[replayIndex];
-  const result = await api.transition(level, currentState, action);
+    const action = path[replayIndex];
+    const result = await api.transition(level, currentState, action);
 
-  if (result.status !== "ok") {
-    mode = "ERROR";
-    ui.showMessage(
-      `Replay failed at step ${replayIndex + 1}: ${result.reason}`
-    );
-    return; // path must not continue
-  }
+    if (result.status !== "ok") {
+        mode = "ERROR";
+        ui.showMessage(`Replay failed at step ${replayIndex + 1}: ${result.reason}`);
+        return;   // path must not continue
+    }
 
-  history.push(currentState);
-  currentState = result.state;
-  replayIndex++;
+    history.push(currentState);
+    currentState = result.state;
+    replayIndex++;
 
-  renderer.renderBlock(currentState);
-  if (result.isGoal) {
-    mode = "WON";
-  }
+    renderer.renderBlock(currentState);
+    if (result.isGoal) {
+        mode = "WON";
+    }
 }
 ```
 
@@ -650,7 +631,7 @@ Contract smoke tests (each test states the request and expected response; some n
 
 ## 9. 3D Conventions
 
-_(default, to be confirmed with team)_
+*(default, to be confirmed with team)*
 
 - **World Mapping:** cell `(row, col)` → world `x = col`, `z = row`; `y` is up.
 - **Block Dimensions & Placement:** standing block sits on its tile; lying block spans two tiles. Render from `occupied_cells`; never place the block from rules computed in JS.
@@ -662,40 +643,38 @@ _(default, to be confirmed with team)_
 
 ## 10. Open Items
 
-| Item                                                                                                       | Owner    | Status                                                                                              |
-| :--------------------------------------------------------------------------------------------------------- | :------- | :-------------------------------------------------------------------------------------------------- |
-| `TransitionResult` implemented in `game/engine.py` + tests (`docs/api.md` §4 documents the approved shape) | TV1/TV2  | Approved, pending implementation                                                                    |
-| Bridge/switch metadata schema; `bridge_states` representation; split-mode state semantics                  | TV2      | **Confirmed & implemented** (§3.1–§3.3; `game/tiles.py`, `game/switches.py`, `game/split_block.py`) |
-| Cost function for UCS/A\* (`step_cost`)                                                                    | team     | TEMPORARY `1.0` (`docs/api.md` §6.2)                                                                |
-| `server.py` FastAPI backend (endpoints, worker thread, timeout)                                            | TV1/TV2  | Pending implementation                                                                              |
-| BFS/DFS/UCS/A\* solver modules                                                                             | TV3/TV4  | Pending; `/solve` returns `501` until then                                                          |
-| Static serving vs CORS decision                                                                            | TV5/lead | Pending                                                                                             |
+| Item | Owner | Status |
+| :--- | :--- | :--- |
+| `TransitionResult` as the Python Engine return type | TV1/TV2 | Implemented in `game/`; HTTP adapter emits the contract result |
+| Bridge/switch metadata schema; `bridge_states` representation; split-mode state semantics | TV2 | Implemented by `game/board.py`, `game/engine.py`, and the HTTP adapter |
+| Cost function for UCS/A\* (`step_cost`) | team | TEMPORARY `1.0` (`docs/api.md` §6.2) |
+| `server.py` FastAPI backend (endpoints, worker thread, timeout) | TV1/TV2 | FastAPI endpoints are implemented; solver worker execution and timeout remain pending until solvers are integrated |
+| BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Pending; `/solve` returns `501` until then |
+| Static serving vs CORS decision | TV5/lead | Same-origin static serving implemented; cross-origin deployment needs explicit CORS configuration |
 
 ---
 
-## 11. Known Deviations of the Current Adapter
+## 11. Known Deviations of the Legacy Adapter (historical)
 
-An existing GUI/backend adapter predates this contract and exposes a different wire format. These deltas are known and **must be reconciled before integration**; the canonical form is §2.1–§3.3 (HTTP/GUI) plus `docs/api.md` §4/§6.3 (engine/level schema). Adapter-internal names below must not leak into API responses.
+Kept for reference only. The legacy GUI/backend adapter that predated this contract is superseded by `server.py` (§2, implementation note), which emits the canonical format. Do not use these adapter-internal names in API responses; the canonical form is §2.1–§3.3 (HTTP/GUI) plus `docs/api.md` §4/§6.3 (engine/level schema).
 
-| Area                | Current adapter                                                         | Canonical contract (here)                                                                                                                               | Resolution                                              |
-| :------------------ | :---------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------ |
+| Area                | Legacy adapter                                                         | Canonical contract (here)                                                                                                                               | Resolution                                              |
+| :------------------ | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------ |
 | Board grid          | `tiles`: matrix of single-character arrays, with explicit `rows`/`cols` | `grid`: array of equal-length strings; `rows`/`cols` derived (§3.1; `docs/api.md` §6.3)                                                                 | Backend returns `grid` (adapter may convert internally) |
-| Bridge metadata     | `bridges[].cells` list + `initial_open`                                 | one entry per `B` tile: `bridges[].cell` + `initial` (§3.1)                                                                                             | Rewrite metadata to the canonical schema                |
-| Switch metadata     | `bridge_ids` + `behavior`, `destinations`                               | `switches[].targets[{bridge, mode}]`, `split_cells` (§3.1)                                                                                              | Rewrite metadata to the canonical schema                |
-| State fields        | extra `status` and `broken_tiles`                                       | state has **no** `status`/`broken_tiles`; status lives only in `TransitionResult`; fragile is non-persistent (§3.2)                                     | Remove both from state; use `result.status`             |
-| Error responses     | not uniformly the standard envelope (may be plain text)                 | every non-2xx body is `{"error": {"code", "message"}}` JSON (§2.2)                                                                                      | Wrap every error                                        |
-| Response `events`   | `events` array in transition responses                                  | no events; GUI derives animation from `(previous state, action, TransitionResult)` (§1.6)                                                               | Drop `events`                                           |
-| Fall `reason` codes | adapter-specific strings                                                | fixed lowercase codes: `void`, `off_board`, `bridge_closed`, `fragile_standing`, `switch_cube_not_split`, `cube_collision`, `action_not_allowed` (§3.3) | Map/rename to the canonical codes                       |
-
-- Where an older standalone `API_CONTRACT.md` draft disagrees (e.g. transition type), the canonical form in this document and `docs/api.md` is authoritative.
-- The adapter must be updated (or the backend must translate) before the §8 smoke tests can pass.
+| Bridge metadata     | `bridges[].cells` list + `initial_open`                                | one entry per `B` tile: `bridges[].cell` + `initial` (§3.1)                                                                                             | Rewrite metadata to the canonical schema                |
+| Switch metadata     | `bridge_ids` + `behavior`, `destinations`                              | `switches[].targets[{bridge, mode}]`, `split_cells` (§3.1)                                                                                              | Rewrite metadata to the canonical schema                |
+| State fields        | extra `status` and `broken_tiles`                                      | state has **no** `status`/`broken_tiles`; status lives only in `TransitionResult`; fragile is non-persistent (§3.2)                                     | Remove both from state; use `result.status`             |
+| Error responses     | not uniformly the standard envelope (may be plain text)                | every non-2xx body is `{"error": {"code", "message"}}` JSON (§2.2)                                                                                      | Wrap every error                                        |
+| Response `events`   | `events` array in transition responses                                 | no events; GUI derives animation from `(previous state, action, TransitionResult)` (§1, principle 6)                                                    | Drop `events`                                           |
+| Fall `reason` codes | adapter-specific strings                                               | fixed lowercase codes: `void`, `off_board`, `bridge_closed`, `fragile_standing`, `switch_cube_not_split`, `cube_collision`, `action_not_allowed` (§3.3) | Map/rename to the canonical codes                       |
 
 ---
 
 ## Changelog
 
-- v5 (2026-10-17): Aligned with `docs/api.md` (engine-side `TransitionResult`, HTTP-only GUI). Added §11 Known Deviations of the Current Adapter (`tiles` vs `grid`, bridge/switch metadata schema, extra `status`/`broken_tiles`, error envelope, response `events`, fall `reason` codes).
+- v6 (2026-10-18): synced repo docs to the newer draft. `server.py` (FastAPI) is the HTTP adapter serving `gui/index.html` at `/` and assets at `/assets/*`; validation and `TransitionResult` framed as implemented. Kept the pre-`server.py` adapter deltas as §11 (historical). Fixed the `§1.6` cross-reference.
+- v5 (2026-10-17): records the running `gui/index.html` GUI and same-origin `server.py` layout, implemented HTTP wire serialization/validation, same-origin serving, and the remaining internal Engine/FastAPI/solver work.
 - v4 (2026-10-17): TV2 semantics finalized, no TV2 assumptions left. Added: bridge/switch metadata schema + loader validation + switch activation/bridge effect rules + fragile support (§3.1); split-mode state/merge/goal rules (§3.2); transition pipeline + new reasons `bridge_closed`/`cube_collision` + split-switch/`SWITCH_CUBE` rules (§3.3); A\* split heuristic fixed at `h = 0` (§3.4). Updated Space binding, smoke test 7 and open items.
 - v3 (2026-10-17): Incorporates TV5 review feedback. Decided: `Engine.transition()` returns `TransitionResult` (implementation pending); `POST /solve` is synchronous with a hard timeout (no job API); `bridge_states` stays an ordered array pending TV2. Added: official endpoint/state-lifecycle rules (§2.1), HTTP error contract (§2.2), full board/tile/bridge/switch schema (§3.1), state JSON semantics (§3.2), `ok`/`fall`/`illegal` examples and reason table (§3.3), solve timeout/501 rules (§4.3), history/undo rules + New Game/Restart semantics (§7), split-mode fall note (§3.3), expanded smoke tests (§8), open items (§10).
 - v2: fixes F1–F9 (isGoal, Action encoding, Board JSON, occupied_cells, renderMetrics location, ERROR mode, tree, Space binding, step_cost note).
-- v1 (2026-10-17): Switched GUI to Three.js web frontend; added HTTP API (§2.1); replaced transition() return type with TransitionResult (E3); added move cost and admissible heuristic rules (§3.4); algorithms BFS/DFS/UCS/A\*.
+- v1 (2026-10-17): Switched GUI to Three.js web frontend; added HTTP API (§2.1); replaced transition() return type with TransitionResult (E3); added move cost and admissible heuristic rules (§3.4); algorithms BFS/DFS/UCS/A*.
