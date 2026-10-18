@@ -111,6 +111,8 @@ TV2 phụ trách:
 
 TV2 mở rộng Engine của TV1 và không tạo một Game Engine riêng.
 
+TV2 đã hoàn thiện các cơ chế trên trong `game/tiles.py`, `game/switches.py`, `game/split_block.py`, hook trực tiếp vào `Engine` mà không thay đổi public API; kèm theo các màn `levels/level2.json`–`level10.json` và bộ test advanced mechanics.
+
 ---
 
 # 3. ĐẦU RA CỦA CÔNG VIỆC 1
@@ -136,6 +138,17 @@ Ví dụ:
 
 ```python
 board = Board(...)
+```
+
+Cấu hình cầu/công tắc nằm trong metadata `bridges`/`switches` của file JSON màn chơi và được kiểm thực sâu (deep validation) khi khởi tạo Engine:
+
+```text
+bridges[i]  = { "id": str, "cell": [r, c], "initial": "open" | "closed" }
+
+switches[i] = { "cell": [r, c],
+                "type": "soft" | "heavy" | "split",
+                "targets": [ { "bridge": id, "mode": "toggle" | "permanent_open" | "permanent_closed" } ],
+                "split_cells": [ [r, c], [r, c] ]   # chỉ với công tắc split
 ```
 
 ---
@@ -176,6 +189,8 @@ Split:
 ```
 
 State là dữ liệu quan trọng được dùng bởi cả Solver và GUI.
+
+Trong đó `bridge_states` là tuple `bool`: phần tử thứ $i$ ứng với cầu thứ $i$ theo thứ tự danh sách `bridges` của màn chơi (`True` = cầu mở/đi được, `False` = cầu đóng/như void); màn chơi không có cầu thì `bridge_states = ()`.
 
 ---
 

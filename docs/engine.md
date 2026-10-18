@@ -21,3 +21,12 @@
 - `BridgeStates` and `step_cost = 1.0` are confirmed temporary placeholders: TV2 finalizes `bridge_states`, the team finalizes the UCS/A\* cost function.
 - Cross-stream dependencies (TV2/TV3/TV4/TV5) are summarized in `docs/api.md` Section 6.7.
 - GUI API contract document created at `docs/gui_api.md` detailing Engine & Solver interfaces, state machine, and replay specifications for TV5.
+- GUI contract v3: `Engine.transition` returns a `TransitionResult` (status `ok`/`fall`/`illegal`, `is_goal`, `reason`); engine/`docs/api.md`/tests updates pending (TV1/TV2).
+- GUI contract v3: `/solve` is a synchronous request with a hard server-side timeout (default 10 s); no job API.
+- GUI contract v4: TV2 advanced-tile semantics confirmed (bridge/switch schema + validation, switch activation, fragile support, split/merge, fall rules) in `docs/gui_api.md` §3.1–§3.3.
+- `bridge_states` final representation: ordered tuple aligned with `Board.bridges`, initialized from each bridge's JSON `initial` ("open"/"closed"); `docs/api.md` §6.1 is no longer TEMPORARY.
+- New transition reason codes: `bridge_closed` (fall) and `cube_collision` (illegal); A* heuristic in split mode fixed at `h = 0`.
+- `docs/api.md` §6.1/§6.4/§6.5/§6.6 are now all CONFIRMED: advanced mechanics implemented in `game/tiles.py`, `game/switches.py`, `game/split_block.py`; the `_roll`/`_cells_supported`/`_apply_tile_effects` hooks are real (no `# TODO(TV2)`).
+- Bridge/switch config is deep-validated when the `Engine` is built (`build_mechanics`); mismatches with the grid (missing `id`, wrong `cell`/`type`, unknown bridge target, bad `initial`/`mode`) raise `ValueError`.
+- `SWITCH_CUBE` is legal only in split mode; soft switches trigger on any contact while heavy/split switch and fragile breaking require the intact 1x1x2 block standing; split switch yields two 1x1 cubes with automatic merge.
+- Levels `levels/level2.json`–`level10.json` added (levels 1–10 complete).
