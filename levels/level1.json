@@ -1,0 +1,12 @@
+{
+  "name": "level1_first_steps",
+  "grid": [
+    "####G",
+    "#####",
+    "#####",
+    "#####",
+    "S####"
+  ],
+  "bridges": [],
+  "switches": []
+}
