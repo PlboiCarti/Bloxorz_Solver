@@ -16,7 +16,7 @@ def _replay(engine: Engine, start: State, path) -> State:
 
 
 def test_ucs_optimal_like_bfs():
-    """UCS tối ưu theo chi phí; với cost đơn vị, độ dài bằng BFS."""
+    """UCS tối ưu theo chi phí phi đồng nhất; không đắt hơn đường BFS."""
     engine = Engine(load_board("levels/level1.json"))
     start = engine.get_initial_state()
 
@@ -25,6 +25,6 @@ def test_ucs_optimal_like_bfs():
 
     assert result.solved is True
     assert result.solution_length == len(result.path)
-    assert result.total_cost == float(len(result.path))
-    assert result.solution_length == baseline.solution_length
+    assert result.total_cost > 0
+    assert result.total_cost <= baseline.total_cost + 1e-9
     assert engine.is_goal(_replay(engine, start, result.path))

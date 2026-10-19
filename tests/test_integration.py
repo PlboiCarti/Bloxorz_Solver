@@ -35,8 +35,8 @@ def test_bfs_solves_every_level(level_file: str):
 
 @pytest.mark.parametrize("level_file", ["level1.json", "level2.json", "level10.json"])
 @pytest.mark.parametrize("solver", SOLVERS, ids=lambda fn: fn.__module__)
-def test_all_solvers_agree_on_shortest_length(level_file: str, solver):
-    """Với cost đơn vị, UCS/A* (tối ưu) khớp độ dài với BFS trên vài màn đại diện."""
+def test_optimal_solvers_not_worse_than_bfs(level_file: str, solver):
+    """Mọi solver giải được; UCS/A* tối ưu chi phí nên không đắt hơn đường BFS."""
     engine = Engine(load_board(Path("levels") / level_file))
     result = solver(engine.get_initial_state(), engine)
     baseline = solve_bfs(engine.get_initial_state(), engine)
@@ -44,4 +44,4 @@ def test_all_solvers_agree_on_shortest_length(level_file: str, solver):
     assert result.solved is True
     assert _replay_to_goal(engine, result.path)
     if solver in (solve_ucs, solve_astar):
-        assert result.solution_length == baseline.solution_length
+        assert result.total_cost <= baseline.total_cost + 1e-9

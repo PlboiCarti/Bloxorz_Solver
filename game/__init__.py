@@ -10,17 +10,20 @@ from game.board import (
     load_board,
     parse_board,
 )
+from game.cost_config import DEFAULT_COST, CostConfig
 from game.engine import Engine, TransitionResult, TransitionStatus
 from game.state import BridgeStates, Cell, State, occupied_cells
 from game.switches import BridgeMode, SwitchType
 
 __all__ = [
+    "DEFAULT_COST",
     "Action",
     "Board",
     "Bridge",
     "BridgeMode",
     "BridgeStates",
     "Cell",
+    "CostConfig",
     "Engine",
     "Orientation",
     "State",

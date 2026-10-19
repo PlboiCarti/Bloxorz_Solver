@@ -6,6 +6,7 @@ from enum import Enum
 from game import split_block
 from game.actions import Action, Orientation
 from game.board import Board
+from game.cost_config import DEFAULT_COST, CostConfig
 from game.state import Cell, State
 from game.switches import SwitchType, apply_targets, build_mechanics, is_triggered
 from game.tiles import support_failure
@@ -68,14 +69,21 @@ _ROLL_TABLE: dict[tuple[Orientation, Action], tuple[tuple[int, int], Orientation
 class Engine:
     """Game Engine chịu trách nhiệm thực thi toàn bộ luật chơi Bloxorz."""
 
-    def __init__(self, board: Board) -> None:
+    def __init__(
+        self, board: Board, cost_config: CostConfig = DEFAULT_COST
+    ) -> None:
         """Khởi tạo Game Engine với bản đồ tương ứng.
+
+        Args:
+            board: Bản đồ màn chơi.
+            cost_config: Cấu hình chi phí bước đi (mặc định `DEFAULT_COST`).
 
         Raises:
             ValueError: Nếu cấu hình cầu/công tắc của bản đồ không hợp lệ (TV2).
         """
         self.board = board
         self.mechanics = build_mechanics(board)
+        self._cost = cost_config
 
     def get_initial_state(self) -> State:
         """Trả về trạng thái ban đầu của màn chơi (khối đứng tại ô start 'S')."""
@@ -159,9 +167,17 @@ class Engine:
         )
 
     def step_cost(self, state: State, action: Action, next_state: State) -> float:
-        """Trả về chi phí bước đi (mặc định 1.0, kể cả SWITCH_CUBE)."""
-        # TODO(TV2/TV4): cấu hình hàm chi phí phi đồng nhất cho UCS/A*
-        return 1.0
+        """Trả về chi phí của một bước đi theo `CostConfig` hiện hành.
+
+        Chi phí phi đồng nhất theo tư thế: lăn từ STANDING (dịch neo 2 ô) tốn
+        `stand_roll`, lăn khi đang nằm (dịch 1 ô) tốn `lie_roll`; đổi khối điều
+        khiển trong split_mode tốn `switch_cube`.
+        """
+        if action == Action.SWITCH_CUBE:
+            return self._cost.switch_cube
+        if state.orientation == Orientation.STANDING:
+            return self._cost.stand_roll
+        return self._cost.lie_roll
 
     # --- Các hook mở rộng (TV2 đã cài đặt) ---
 

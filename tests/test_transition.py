@@ -8,6 +8,7 @@ import pytest
 
 from game.actions import Action, Orientation
 from game.board import Board, TileType, load_board, parse_board
+from game.cost_config import DEFAULT_COST, CostConfig
 from game.engine import Engine, TransitionStatus
 from game.state import Cell, State, occupied_cells
 
@@ -492,13 +493,40 @@ def test_engine_roundtrip_roll():
 
 
 def test_engine_step_cost():
-    """Kiểm tra step_cost trả về 1.0 trong TV1 core."""
+    """Kiểm tra step_cost phi đồng nhất theo tư thế khối và loại hành động."""
     board = make_open_board(10, 10)
     engine = Engine(board)
     s1 = State(block_position=(5, 5), orientation=Orientation.STANDING)
     s2 = step(engine, s1, Action.RIGHT)
     assert s2 is not None
-    assert engine.step_cost(s1, Action.RIGHT, s2) == 1.0
+
+    # Lăn từ STANDING (dịch neo 2 ô) tốn `stand_roll`.
+    assert engine.step_cost(s1, Action.RIGHT, s2) == DEFAULT_COST.stand_roll
+    # Lăn khi đang nằm (dịch neo 1 ô) tốn `lie_roll`.
+    assert engine.step_cost(s2, Action.LEFT, s1) == DEFAULT_COST.lie_roll
+    # Đổi khối điều khiển tốn `switch_cube`.
+    assert engine.step_cost(s1, Action.SWITCH_CUBE, s1) == DEFAULT_COST.switch_cube
+
+
+def test_engine_accepts_custom_cost_config():
+    """Engine cho phép tiêm `CostConfig` tùy chỉnh (backward-compat + override)."""
+    board = make_open_board(10, 10)
+    engine = Engine(board, cost_config=CostConfig(stand_roll=4.0, lie_roll=2.0))
+    s1 = State(block_position=(5, 5), orientation=Orientation.STANDING)
+    s2 = step(engine, s1, Action.RIGHT)
+    assert s2 is not None
+    assert engine.step_cost(s1, Action.RIGHT, s2) == 4.0
+    assert engine.step_cost(s2, Action.LEFT, s1) == 2.0
+
+
+def test_cost_config_frozen_and_slots():
+    """`CostConfig` bất biến (frozen) và không có `__dict__` (slots)."""
+    config = CostConfig()
+    assert config == DEFAULT_COST
+    assert not hasattr(config, "__dict__")
+    with pytest.raises(FrozenInstanceError):
+        config.stand_roll = 2.0  # type: ignore[misc]
+
 
 
 # --- TransitionResult (status & reason) ---
