@@ -18,15 +18,16 @@ You are currently on branch `engine`.
 ## Repo layout & implementation status (do not assume empty vs implemented)
 
 ```
-game/         IMPLEMENTED: actions.py, state.py, board.py, engine.py
-              EMPTY (TV2 stubs): split_block.py, switches.py, tiles.py
+game/         IMPLEMENTED: actions.py, state.py, board.py, engine.py, split_block.py,
+              switches.py, tiles.py (TV2 advanced mechanics done)
 solvers/      EMPTY: bfs.py, dfs.py, ucs.py, astar.py, base_solver.py, search_result.py
 gui/          EMPTY: app.py, controller.py, renderer.py
 experiments/  EMPTY: benchmark.py, run_experiments.py, results.csv
-tests/        test_transition.py HAS 34 PASSING TESTS; all other test_*.py empty
-levels/       level1.json real (5x10); level2.json empty
+tests/        test_transition.py + test_advanced_tiles.py HAVE 58 PASSING TESTS;
+              test_bfs/dfs/ucs/astar/integration.py empty
+levels/       level1-10.json all real (level1 is 5x10; level10 is the biggest)
 main.py       EMPTY (intended entrypoint: launches gui.app)
-docs/         see "Docs" below (index.md empty)
+docs/         see "Docs" below (index.md still empty)
 ```
 
 Everything under `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/` is
@@ -35,7 +36,7 @@ generated — ignore it.
 ## Commands (run from repo root; `uv` may be at `~/.local/bin/uv`)
 
 - Sync deps: `uv sync --dev`
-- All tests: `uv run pytest -q` (34 passing)
+- All tests: `uv run pytest -q` (58 passing, 0.2s)
 - One test: `uv run pytest tests/test_transition.py::test_name`
 - Lint: `uv run ruff check .`
 - Typecheck: `uv run pyright` (only `game` + `tests` are included — solvers/gui aren't checked yet)
@@ -87,7 +88,7 @@ class Engine:
     def transition(self, state, action) -> State | None: ...  # pure; None if off-board or hits VOID
     def is_goal(self, state) -> bool: ...                   # STANDING on board.goal and not split_mode
     def step_cost(self, state, action, next_state) -> float: ...  # always 1.0 (placeholder)
-    # TV2 hooks (core returns trivial result): _roll, _cells_supported, _apply_tile_effects
+    # TV2 hooks (IMPLEMENTED: split mode, switches, bridges, fragile tiles)
 ```
 
 `Board` (frozen): `rows, cols, start, goal, grid, bridges, switches, name`;
@@ -95,9 +96,9 @@ methods `in_bounds(cell) -> bool`, `tile_at(cell) -> TileType` (raises `IndexErr
 Loaders: `load_board(path) -> Board` (JSON file), `parse_board(dict) -> Board`.
 
 Core rule notes:
-- Only off-board cells and `VOID` block a move; `FRAGILE`/`BRIDGE`/switch tiles are
-  parsed but treated as plain floor (`# TODO(TV2)` hooks exist in `engine.py`).
-- A lying block is supported on the goal but does **not** win.
+- TV2 mechanics are live: `FRAGILE` breaks a lying block, `BRIDGE` tiles toggle via
+  switches (`SOFT_SWITCH`/`HEAVY_SWITCH`/`SPLIT_SWITCH`), split mode lets two cubes move
+  (SWITCH_CUBE legal in split mode) and only a non-split standing block on the goal wins.
 - Illegal-move outcomes are `transition(...) is None`; "falling" is never a state.
 
 ## Level JSON schema (must stay reusable across all solvers)
