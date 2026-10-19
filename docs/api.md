@@ -168,16 +168,17 @@ class TransitionResult:
 
 `Board` is a frozen dataclass. Its level data is immutable; the derived lookup maps are read-only.
 
-| Field | Type | Meaning |
-|---|---|---|
-| `rows`, `cols` | `int` | Dimensions derived from the character grid. |
-| `start`, `goal` | `Cell` | Coordinates of the unique `S` and `G`; the `S` cell is stored as `FLOOR` in `grid`. |
-| `grid` | `tuple[tuple[TileType, ...], ...]` | Parsed tile matrix. |
-| `bridges` | `tuple[Bridge, ...]` | Bridge metadata in input JSON order. |
-| `switches` | `tuple[Switch, ...]` | Switch metadata in input JSON order. |
-| `name` | `str` | Level name; defaults to `""`. |
-| `bridge_at` | read-only `Mapping[Cell, Bridge]` | Derived lookup from a bridge cell to its metadata. |
-| `switch_at` | read-only `Mapping[Cell, Switch]` | Derived lookup from a switch cell to its metadata. |
+| Field           | Type                               | Meaning                                                                                     |
+| --------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `rows`, `cols`  | `int`                              | Dimensions derived from the character grid.                                                 |
+| `start`, `goal` | `Cell`                             | Coordinates of the unique `S` and `G`; the `S` cell is stored as `FLOOR` in `grid`.         |
+| `grid`          | `tuple[tuple[TileType, ...], ...]` | Parsed tile matrix.                                                                         |
+| `grid_raw`      | `tuple[str, ...]`                  | Original JSON row strings (used by the HTTP adapter to re-emit `grid`).                     |
+| `bridges`       | `tuple[dict[str, Any], ...]`       | Raw bridge metadata records in input JSON order; deep-validated when the `Engine` is built. |
+| `switches`      | `tuple[dict[str, Any], ...]`       | Raw switch metadata records in input JSON order; deep-validated when the `Engine` is built. |
+| `name`          | `str`                              | Level name; defaults to `""`.                                                               |
+| `bridge_at`     | read-only `Mapping[Cell, Bridge]`  | Derived lookup from a bridge cell to its metadata (`Bridge`).                               |
+| `switch_at`     | read-only `Mapping[Cell, Switch]`  | Derived lookup from a switch cell to its metadata (`Switch`).                               |
 
 The metadata records are frozen dataclasses:
 
@@ -302,7 +303,10 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
       "cell": [1, 8],
       "type": "split",
       "targets": [],
-      "split_cells": [[4, 0], [6, 10]]
+      "split_cells": [
+        [4, 0],
+        [6, 10]
+      ]
     }
   ]
 }
@@ -342,9 +346,9 @@ The engine applies switch effects deterministically: it inspects the resulting b
 
 ### 6.7 Stream Dependency Summary
 
-| Stream                   | Can rely on now                                                                                | Must wait for                        |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
-| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics                            | —                                    |
-| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract                                       | Solver modules and level set         |
-| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                                             | Solver modules and final cost rule   |
-| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema                                     | Solver outputs and final cost values |
+| Stream                   | Can rely on now                                                       | Must wait for                        |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
+| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | —                                    |
+| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract              | Solver modules and level set         |
+| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                   | Solver modules and final cost rule   |
+| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema           | Solver outputs and final cost values |

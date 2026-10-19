@@ -1,22 +1,35 @@
 """Gói game chứa logic cốt lõi của trò chơi Bloxorz."""
 
 from game.actions import Action, Orientation
-from game.board import Board, TileType, load_board, parse_board
-from game.engine import Engine
+from game.board import (
+    Board,
+    Bridge,
+    Switch,
+    SwitchTarget,
+    TileType,
+    load_board,
+    parse_board,
+)
+from game.engine import Engine, TransitionResult, TransitionStatus
 from game.state import BridgeStates, Cell, State, occupied_cells
 from game.switches import BridgeMode, SwitchType
 
 __all__ = [
     "Action",
     "Board",
+    "Bridge",
     "BridgeMode",
     "BridgeStates",
     "Cell",
     "Engine",
     "Orientation",
     "State",
+    "Switch",
+    "SwitchTarget",
     "SwitchType",
     "TileType",
+    "TransitionResult",
+    "TransitionStatus",
     "load_board",
     "occupied_cells",
     "parse_board",

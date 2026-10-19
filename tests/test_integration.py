@@ -1,0 +1,47 @@
+"""Kiểm thử tích hợp: Solver hợp tác với Engine trên mọi màn chơi."""
+
+from pathlib import Path
+
+import pytest
+
+from game import Engine, TransitionStatus, load_board
+from solvers import solve_astar, solve_bfs, solve_dfs, solve_ucs
+
+LEVEL_FILES = [f"level{i}.json" for i in range(1, 11)]
+SOLVERS = [solve_bfs, solve_dfs, solve_ucs, solve_astar]
+
+
+def _replay_to_goal(engine: Engine, path) -> bool:
+    """Phát lại toàn bộ đường đi qua Engine API, trả về True nếu kết thúc ở đích."""
+    state = engine.get_initial_state()
+    for action in path:
+        result = engine.transition(state, action)
+        if result.status is not TransitionStatus.OK or result.state is None:
+            return False
+        state = result.state
+    return engine.is_goal(state)
+
+
+@pytest.mark.parametrize("level_file", LEVEL_FILES)
+def test_bfs_solves_every_level(level_file: str):
+    """BFS giải được mọi màn chơi và lời giải replay tới đích."""
+    engine = Engine(load_board(Path("levels") / level_file))
+    result = solve_bfs(engine.get_initial_state(), engine)
+
+    assert result.solved is True, f"{level_file} không giải được bằng BFS"
+    assert result.solution_length == len(result.path)
+    assert _replay_to_goal(engine, result.path)
+
+
+@pytest.mark.parametrize("level_file", ["level1.json", "level2.json", "level10.json"])
+@pytest.mark.parametrize("solver", SOLVERS, ids=lambda fn: fn.__module__)
+def test_all_solvers_agree_on_shortest_length(level_file: str, solver):
+    """Với cost đơn vị, UCS/A* (tối ưu) khớp độ dài với BFS trên vài màn đại diện."""
+    engine = Engine(load_board(Path("levels") / level_file))
+    result = solver(engine.get_initial_state(), engine)
+    baseline = solve_bfs(engine.get_initial_state(), engine)
+
+    assert result.solved is True
+    assert _replay_to_goal(engine, result.path)
+    if solver in (solve_ucs, solve_astar):
+        assert result.solution_length == baseline.solution_length

@@ -19,17 +19,23 @@ from pathlib import Path
 import pytest
 
 from game.actions import Action, Orientation
-from game.board import Board, TileType, load_board, parse_board
-from game.engine import Engine
+from game.board import load_board, parse_board
+from game.engine import Engine, TransitionStatus
 from game.split_block import (
     active_cube_cell,
     make_split_state,
-    move_active_cube,
     switch_active_cube,
     try_merge,
 )
-from game.state import Cell, State
-from game.switches import BridgeMode, SwitchType, build_mechanics
+from game.state import State
+from game.switches import build_mechanics
+
+
+def step(engine: Engine, state: State, action: Action) -> State | None:
+    """Helper tương thích: trả về State khi bước đi OK, ngược lại None."""
+    result = engine.transition(state, action)
+    return result.state if result.status is TransitionStatus.OK else None
+
 
 # --- Helper giải BFS nhanh cho integration tests ---
 
@@ -49,7 +55,7 @@ def _bfs_solve(engine: Engine) -> list[Action] | None:
                 cur = prev
             return path[::-1]
         for a in engine.legal_actions(s):
-            nxt = engine.transition(s, a)
+            nxt = step(engine, s, a)
             assert nxt is not None
             if nxt not in parent:
                 parent[nxt] = (s, a)
@@ -62,15 +68,6 @@ def _bfs_solve(engine: Engine) -> list[Action] | None:
 
 def test_fragile_standing_breaks():
     """Khối 1x1x2 đứng thẳng trên ô fragile sẽ rơi (transition trả về None)."""
-    grid = [
-        "####",
-        "#S#G",
-        "##F#",
-    ]
-    board = parse_board({"name": "fragile_stand", "grid": grid})
-    engine = Engine(board)
-    s0 = engine.get_initial_state()  # STANDING tại (1, 1)
-
     # Đang đứng tại (1, 1). Lăn DOWN -> VERTICAL tại (2, 1)-(3, 1) nhưng ngoài biên
     # Lăn RIGHT -> HORIZONTAL tại (1, 2)-(1, 3).
     # Hãy tạo một bản đồ mở nơi khối đứng lên ô F:
@@ -84,13 +81,13 @@ def test_fragile_standing_breaks():
     e2 = Engine(parse_board({"name": "fragile_stand_open", "grid": grid2}))
     s = e2.get_initial_state()  # STANDING tại (1, 1)
     # RIGHT -> HORIZONTAL tại (1, 2)-(1, 3)
-    s_right = e2.transition(s, Action.RIGHT)
+    s_right = step(e2, s, Action.RIGHT)
     assert s_right is not None
     assert s_right.orientation == Orientation.HORIZONTAL
 
     # Từ HORIZONTAL tại (1, 2)-(1, 3):
     # Lăn DOWN -> HORIZONTAL tại (2, 2)-(2, 3), ô (2, 2) là F! Nằm đè lên F là hợp lệ!
-    s_down = e2.transition(s_right, Action.DOWN)
+    s_down = step(e2, s_right, Action.DOWN)
     assert s_down is not None
     assert s_down.orientation == Orientation.HORIZONTAL
 
@@ -104,13 +101,6 @@ def test_fragile_standing_breaks():
     # Nếu block từ (2, 4) STANDING lăn LEFT -> HORIZONTAL (2, 2)-(2, 3),
     # rồi lăn LEFT -> STANDING tại (2, 1).
     # Nếu block đứng trực tiếp lên F: ví dụ từ HORIZONTAL (2, 0)-(2, 1) lăn RIGHT -> STANDING tại (2, 2) (F):
-    grid_direct = [
-        "######",
-        "###S##",
-        "###F##",
-        "######",
-        "#####G",
-    ]
     # S tại (1, 3), F tại (2, 3). S đứng tại (1, 3).
     # Nếu lăn DOWN -> VERTICAL tại (2, 3)-(3, 3) (nằm dọc qua F -> an toàn).
     # Để STANDING trên F: S tại (0, 3). Lăn DOWN -> VERTICAL (1, 3)-(2, 3). Lăn DOWN -> STANDING (3, 3).
@@ -126,12 +116,12 @@ def test_fragile_standing_breaks():
     ]
     e_break = Engine(parse_board({"name": "break_test", "grid": grid_break}))
     s_start = State(block_position=(2, 0), orientation=Orientation.STANDING)
-    s_h = e_break.transition(s_start, Action.RIGHT)
+    s_h = step(e_break, s_start, Action.RIGHT)
     assert s_h is not None
     assert s_h.orientation == Orientation.HORIZONTAL
     assert s_h.block_position == (2, 1)  # chiếm (2, 1) và (2, 2)
     # Từ (2, 1)-(2, 2) HORIZONTAL, lăn RIGHT -> STANDING tại (2, 3) (ô F)!
-    s_fall = e_break.transition(s_h, Action.RIGHT)
+    s_fall = step(e_break, s_h, Action.RIGHT)
     assert s_fall is None  # Rơi vỡ ô fragile!
 
 
@@ -147,12 +137,12 @@ def test_fragile_lying_supported():
     engine = Engine(board)
     s0 = engine.get_initial_state()  # STANDING tại (1, 1)
     # Lăn RIGHT -> HORIZONTAL tại (1, 2) và (1, 3), cả 2 đều là F!
-    s1 = engine.transition(s0, Action.RIGHT)
+    s1 = step(engine, s0, Action.RIGHT)
     assert s1 is not None
     assert s1.orientation == Orientation.HORIZONTAL
     assert s1.occupied_cells() == ((1, 2), (1, 3))
     # Lăn RIGHT tiếp -> STANDING tại (1, 4) là sàn # bình thường -> an toàn!
-    s2 = engine.transition(s1, Action.RIGHT)
+    s2 = step(engine, s1, Action.RIGHT)
     assert s2 is not None
     assert s2.orientation == Orientation.STANDING
     assert s2.block_position == (1, 4)
@@ -171,7 +161,7 @@ def test_cube_stands_safely_on_fragile():
     # Tạo state split thủ công
     s_split = make_split_state(bridge_states=(), cells=((1, 2), (3, 3)))
     # active_cube là 1 tại (1, 2). Lăn DOWN -> tới (2, 2) là ô F!
-    s_next = engine.transition(s_split, Action.DOWN)
+    s_next = step(engine, s_split, Action.DOWN)
     assert s_next is not None
     assert s_next.split_mode is True
     assert s_next.cube1_position == (2, 2)
@@ -199,7 +189,7 @@ def test_bridge_closed_acts_as_void():
     engine = Engine(board)
     s0 = engine.get_initial_state()
     # (1, 1) STANDING -> RIGHT -> HORIZONTAL tại (1, 2)-(1, 3) (trong đó (1, 3) là cầu đóng)
-    nxt = engine.transition(s0, Action.RIGHT)
+    nxt = step(engine, s0, Action.RIGHT)
     assert nxt is None
 
 
@@ -220,7 +210,7 @@ def test_bridge_open_supports_block():
     )
     engine = Engine(board)
     s0 = engine.get_initial_state()
-    nxt = engine.transition(s0, Action.RIGHT)
+    nxt = step(engine, s0, Action.RIGHT)
     assert nxt is not None
     assert nxt.block_position == (1, 2)
     assert nxt.orientation == Orientation.HORIZONTAL
@@ -255,7 +245,7 @@ def test_soft_switch_activated_by_lying_and_standing():
     # Lăn RIGHT -> HORIZONTAL tại (1, 2)-(1, 3).
     # Nhưng ô (1, 3) là cầu đang closed TRƯỚC KHI bước chân xuống!
     # Nên bước đi này không hợp lệ vì (1, 3) chưa mở.
-    assert engine.transition(s0, Action.RIGHT) is None
+    assert step(engine, s0, Action.RIGHT) is None
 
     # Thay đổi bố cục: công tắc ở ô riêng để kích hoạt trước
     grid2 = [
@@ -284,11 +274,11 @@ def test_soft_switch_activated_by_lying_and_standing():
     assert s_init.bridge_states == (False,)
     # S tại (2, 1). Lăn UP -> VERTICAL tại (1, 1)-(0, 1).
     # Lăn RIGHT -> HORIZONTAL tại (2, 2)-(2, 3).
-    s_r = e2.transition(s_init, Action.RIGHT)
+    s_r = step(e2, s_init, Action.RIGHT)
     assert s_r is not None
     # Từ HORIZONTAL tại (2, 2)-(2, 3), lăn UP -> HORIZONTAL tại (1, 2)-(1, 3)
     # Ô (1, 2) là 'o', khối đè lên khi đang HORIZONTAL (nằm)!
-    s_up = e2.transition(s_r, Action.UP)
+    s_up = step(e2, s_r, Action.UP)
     assert s_up is not None
     # Cầu B1 đã được toggle từ closed -> open!
     assert s_up.bridge_states == (True,)
@@ -329,10 +319,10 @@ def test_heavy_switch_requires_standing():
 
     # 1. Nằm đè lên heavy switch:
     # S tại (2, 1) -> RIGHT -> HORIZONTAL (2, 2)-(2, 3)
-    s_h = engine.transition(s0, Action.RIGHT)
+    s_h = step(engine, s0, Action.RIGHT)
     assert s_h is not None
     # UP -> HORIZONTAL (1, 2)-(1, 3). Ô (1, 2) là 'x' nhưng khối đang nằm ngang!
-    s_lying = engine.transition(s_h, Action.UP)
+    s_lying = step(engine, s_h, Action.UP)
     assert s_lying is not None
     # Cầu KHÔNG được kích hoạt!
     assert s_lying.bridge_states == (False, False)
@@ -340,7 +330,7 @@ def test_heavy_switch_requires_standing():
     # 2. Đứng thẳng lên heavy switch:
     # Từ s_lying tại (1, 2)-(1, 3) HORIZONTAL:
     # Lăn LEFT -> STANDING tại (1, 1).
-    s_stand1 = engine.transition(s_lying, Action.LEFT)
+    s_stand1 = step(engine, s_lying, Action.LEFT)
     assert s_stand1 is not None
     assert s_stand1.orientation == Orientation.STANDING
     assert s_stand1.block_position == (1, 1)
@@ -348,7 +338,6 @@ def test_heavy_switch_requires_standing():
     # Từ (1, 1) STANDING, nếu lăn RIGHT -> HORIZONTAL (1, 2)-(1, 3).
     # Để đứng lên (1, 2): cần đứng từ (3, 2) lăn UP 2 lần, hoặc từ (1, 4) lăn LEFT:
     # Thử từ (1, 4) STANDING:
-    s_stand_near = State(block_position=(1, 4), orientation=Orientation.STANDING)
     # Lăn LEFT -> HORIZONTAL (1, 2)-(1, 3)
     # Lăn LEFT tiếp -> STANDING tại (1, 1).
     # Để STANDING trên (1, 2):
@@ -359,7 +348,7 @@ def test_heavy_switch_requires_standing():
     s_h_right = State(
         block_position=(1, 3), orientation=Orientation.HORIZONTAL, bridge_states=(False, False)
     )
-    s_stand_on_x = engine.transition(s_h_right, Action.LEFT)
+    s_stand_on_x = step(engine, s_h_right, Action.LEFT)
     assert s_stand_on_x is not None
     assert s_stand_on_x.orientation == Orientation.STANDING
     assert s_stand_on_x.block_position == (1, 2)  # Đứng thẳng trên 'x'!
@@ -392,7 +381,7 @@ def test_cube_cannot_activate_heavy_switch():
     engine = Engine(board)
     s_split = make_split_state(bridge_states=(False,), cells=((0, 1), (3, 3)))
     # active_cube 1 tại (0, 1) lăn DOWN -> đến (1, 1) là 'x'
-    s_next = engine.transition(s_split, Action.DOWN)
+    s_next = step(engine, s_split, Action.DOWN)
     assert s_next is not None
     assert s_next.cube1_position == (1, 1)
     # Cầu vẫn đóng vì cube 1x1 không kích hoạt heavy switch!
@@ -434,17 +423,12 @@ def test_bridge_modes():
     assert s0.bridge_states == (False, False, True)
 
     # Đưa khối giẫm lên switch tại (1, 2)
-    s_stand = State(
-        block_position=(0, 2),
-        orientation=Orientation.VERTICAL,
-        bridge_states=s0.bridge_states,
-    )
     # Lăn DOWN -> VERTICAL tại (1, 2)-(2, 2), nhưng ô (2, 2) là cầu closed!
     # Thử từ (1, 1) STANDING lăn RIGHT -> HORIZONTAL tại (1, 2)-(1, 3):
     s_from = State(
         block_position=(1, 1), orientation=Orientation.STANDING, bridge_states=s0.bridge_states
     )
-    s_triggered = engine.transition(s_from, Action.RIGHT)
+    s_triggered = step(engine, s_from, Action.RIGHT)
     assert s_triggered is not None
     # B1 toggle: False -> True
     # B2 permanent_open: False -> True
@@ -481,7 +465,7 @@ def test_split_switch_triggers_split_mode():
     # Đứng tại (1, 2) HORIZONTAL (1, 2)-(1, 3) lăn RIGHT không được vì sẽ đứng tại (1, 4).
     # Đặt block HORIZONTAL tại (1, 4)-(1, 5), lăn LEFT -> STANDING tại (1, 3) (ô P)
     s_h = State(block_position=(1, 4), orientation=Orientation.HORIZONTAL)
-    s_split = engine.transition(s_h, Action.LEFT)
+    s_split = step(engine, s_h, Action.LEFT)
     assert s_split is not None
     assert s_split.split_mode is True
     assert s_split.cube1_position == (0, 1)
@@ -518,7 +502,7 @@ def test_cube_movement_and_collision():
     # Đặt cube 2 ở xa (3, 3) để khi cube 1 đi sang (1, 2) không bị tự động merge
     s = make_split_state(bridge_states=(), cells=((1, 1), (3, 3)))
     # active_cube là 1 tại (1, 1). Lăn RIGHT -> tới (1, 2)
-    s_right = engine.transition(s, Action.RIGHT)
+    s_right = step(engine, s, Action.RIGHT)
     assert s_right is not None
     assert s_right.split_mode is True
     assert s_right.cube1_position == (1, 2)
@@ -526,7 +510,7 @@ def test_cube_movement_and_collision():
     # Thử va chạm: đặt cube 2 tại (1, 2)
     s_block = make_split_state(bridge_states=(), cells=((1, 1), (1, 2)))
     # Từ (1, 1), cube 1 muốn lăn RIGHT vào (1, 2) (vị trí cube 2) -> Bị chặn (None)!
-    assert engine.transition(s_block, Action.RIGHT) is None
+    assert step(engine, s_block, Action.RIGHT) is None
 
 
 def test_cubes_auto_merge_horizontally_and_vertically():

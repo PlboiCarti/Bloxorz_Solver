@@ -8,8 +8,15 @@ import pytest
 
 from game.actions import Action, Orientation
 from game.board import Board, TileType, load_board, parse_board
-from game.engine import Engine
+from game.engine import Engine, TransitionStatus
 from game.state import Cell, State, occupied_cells
+
+
+def step(engine: Engine, state: State, action: Action) -> State | None:
+    """Helper tương thích: trả về State khi bước đi OK, ngược lại None."""
+    result = engine.transition(state, action)
+    return result.state if result.status is TransitionStatus.OK else None
+
 
 # --- State ---
 
@@ -182,6 +189,42 @@ def test_parse_board_rejections():
         parse_board({"grid": ["SG"], "switches": "not-a-list"})
 
 
+def test_board_grid_raw_and_metadata_views():
+    """Kiểm tra grid_raw giữ nguyên ký tự gốc và bridge_at/switch_at trả metadata."""
+    grid = ["S#G", "BoP", "..x"]
+    board = parse_board(
+        {
+            "name": "meta",
+            "grid": grid,
+            "bridges": [{"id": "b1", "cell": [1, 0], "initial": "closed"}],
+            "switches": [
+                {
+                    "cell": [1, 1],
+                    "type": "soft",
+                    "targets": [{"bridge": "b1", "mode": "toggle"}],
+                },
+                {"cell": [1, 2], "type": "split", "split_cells": [[0, 1], [2, 0]]},
+                {"cell": [2, 2], "type": "heavy", "targets": []},
+            ],
+        }
+    )
+    assert board.grid_raw == ("S#G", "BoP", "..x")
+
+    bridge = board.bridge_at[(1, 0)]
+    assert bridge.id == "b1"
+    assert bridge.cell == (1, 0)
+    assert bridge.initial == "closed"
+
+    soft = board.switch_at[(1, 1)]
+    assert soft.type == "soft"
+    assert soft.targets[0].bridge == "b1"
+    assert soft.targets[0].mode == "toggle"
+
+    split = board.switch_at[(1, 2)]
+    assert split.type == "split"
+    assert split.split_cells == ((0, 1), (2, 0))
+
+
 def test_load_board_level1():
     """Kiểm tra load_board nạp thành công file levels/level1.json."""
     board = load_board("levels/level1.json")
@@ -275,7 +318,7 @@ def test_engine_12_transitions_table(
     engine = Engine(board)
     current_state = State(block_position=(5, 5), orientation=from_ori)
 
-    next_state = engine.transition(current_state, action)
+    next_state = step(engine, current_state, action)
     assert next_state is not None
     assert next_state.orientation == expected_ori
     assert next_state.block_position == expected_pos
@@ -287,24 +330,24 @@ def test_engine_off_board_moves_return_none():
     engine = Engine(board)
 
     # Cạnh trên (UP)
-    assert engine.transition(State((0, 5), Orientation.STANDING), Action.UP) is None
-    assert engine.transition(State((0, 5), Orientation.HORIZONTAL), Action.UP) is None
-    assert engine.transition(State((0, 5), Orientation.VERTICAL), Action.UP) is None
+    assert step(engine, State((0, 5), Orientation.STANDING), Action.UP) is None
+    assert step(engine, State((0, 5), Orientation.HORIZONTAL), Action.UP) is None
+    assert step(engine, State((0, 5), Orientation.VERTICAL), Action.UP) is None
 
     # Cạnh dưới (DOWN)
-    assert engine.transition(State((9, 5), Orientation.STANDING), Action.DOWN) is None
-    assert engine.transition(State((9, 5), Orientation.HORIZONTAL), Action.DOWN) is None
-    assert engine.transition(State((8, 5), Orientation.VERTICAL), Action.DOWN) is None
+    assert step(engine, State((9, 5), Orientation.STANDING), Action.DOWN) is None
+    assert step(engine, State((9, 5), Orientation.HORIZONTAL), Action.DOWN) is None
+    assert step(engine, State((8, 5), Orientation.VERTICAL), Action.DOWN) is None
 
     # Cạnh trái (LEFT)
-    assert engine.transition(State((5, 0), Orientation.STANDING), Action.LEFT) is None
-    assert engine.transition(State((5, 0), Orientation.HORIZONTAL), Action.LEFT) is None
-    assert engine.transition(State((5, 0), Orientation.VERTICAL), Action.LEFT) is None
+    assert step(engine, State((5, 0), Orientation.STANDING), Action.LEFT) is None
+    assert step(engine, State((5, 0), Orientation.HORIZONTAL), Action.LEFT) is None
+    assert step(engine, State((5, 0), Orientation.VERTICAL), Action.LEFT) is None
 
     # Cạnh phải (RIGHT)
-    assert engine.transition(State((5, 9), Orientation.STANDING), Action.RIGHT) is None
-    assert engine.transition(State((5, 8), Orientation.HORIZONTAL), Action.RIGHT) is None
-    assert engine.transition(State((5, 9), Orientation.VERTICAL), Action.RIGHT) is None
+    assert step(engine, State((5, 9), Orientation.STANDING), Action.RIGHT) is None
+    assert step(engine, State((5, 8), Orientation.HORIZONTAL), Action.RIGHT) is None
+    assert step(engine, State((5, 9), Orientation.VERTICAL), Action.RIGHT) is None
 
 
 def test_engine_move_onto_void_returns_none():
@@ -320,15 +363,15 @@ def test_engine_move_onto_void_returns_none():
 
     # Đứng tại (1, 1), lăn RIGHT -> HORIZONTAL anchor (1, 2) chiếm (1, 2) [FLOOR] và (1, 3) [VOID]
     s_stand = State(block_position=(1, 1), orientation=Orientation.STANDING)
-    assert engine.transition(s_stand, Action.RIGHT) is None
+    assert step(engine, s_stand, Action.RIGHT) is None
 
     # Đứng tại (0, 3), lăn DOWN -> VERTICAL anchor (1, 3) chiếm (1, 3) [VOID] và (2, 3) [FLOOR]
     s_stand_v = State(block_position=(0, 3), orientation=Orientation.STANDING)
-    assert engine.transition(s_stand_v, Action.DOWN) is None
+    assert step(engine, s_stand_v, Action.DOWN) is None
 
     # Đứng tại (0, 0), lăn RIGHT -> HORIZONTAL anchor (0, 1) chiếm (0, 1) [FLOOR] và (0, 2) [FLOOR], hợp lệ
     s_stand_ok = State(block_position=(0, 0), orientation=Orientation.STANDING)
-    assert engine.transition(s_stand_ok, Action.RIGHT) is not None
+    assert step(engine, s_stand_ok, Action.RIGHT) is not None
 
 
 def test_engine_legal_actions_order_and_filtering():
@@ -380,7 +423,7 @@ def test_engine_lying_block_supported_on_goal():
 
     # Từ STANDING (5, 5), lăn RIGHT -> HORIZONTAL (5, 6) chiếm (5, 6) [G] và (5, 7) [FLOOR]
     s_start = State(block_position=(5, 5), orientation=Orientation.STANDING)
-    s_next = engine.transition(s_start, Action.RIGHT)
+    s_next = step(engine, s_start, Action.RIGHT)
     assert s_next is not None
     assert s_next.block_position == (5, 6)
     assert s_next.orientation == Orientation.HORIZONTAL
@@ -418,7 +461,7 @@ def test_engine_switch_cube_illegal_in_core():
     engine = Engine(board)
     s = State(block_position=(5, 5), orientation=Orientation.STANDING, split_mode=False)
 
-    assert engine.transition(s, Action.SWITCH_CUBE) is None
+    assert step(engine, s, Action.SWITCH_CUBE) is None
 
 
 def test_engine_transition_immutability_and_determinism():
@@ -427,8 +470,8 @@ def test_engine_transition_immutability_and_determinism():
     engine = Engine(board)
     s = State(block_position=(5, 5), orientation=Orientation.STANDING)
 
-    s1 = engine.transition(s, Action.RIGHT)
-    s2 = engine.transition(s, Action.RIGHT)
+    s1 = step(engine, s, Action.RIGHT)
+    s2 = step(engine, s, Action.RIGHT)
 
     assert s.block_position == (5, 5)
     assert s.orientation == Orientation.STANDING
@@ -442,9 +485,9 @@ def test_engine_roundtrip_roll():
     engine = Engine(board)
     s = State(block_position=(5, 5), orientation=Orientation.STANDING)
 
-    s_right = engine.transition(s, Action.RIGHT)
+    s_right = step(engine, s, Action.RIGHT)
     assert s_right is not None
-    s_back = engine.transition(s_right, Action.LEFT)
+    s_back = step(engine, s_right, Action.LEFT)
     assert s_back == s
 
 
@@ -453,9 +496,93 @@ def test_engine_step_cost():
     board = make_open_board(10, 10)
     engine = Engine(board)
     s1 = State(block_position=(5, 5), orientation=Orientation.STANDING)
-    s2 = engine.transition(s1, Action.RIGHT)
+    s2 = step(engine, s1, Action.RIGHT)
     assert s2 is not None
     assert engine.step_cost(s1, Action.RIGHT, s2) == 1.0
+
+
+# --- TransitionResult (status & reason) ---
+
+
+def test_transition_result_ok_status_and_goal_flag():
+    """Kiểm tra transition trả OK kèm state và cờ is_goal chính xác."""
+    board = make_open_board(10, 10, goal=(5, 6))
+    engine = Engine(board)
+
+    result = engine.transition(State((5, 5), Orientation.STANDING), Action.RIGHT)
+    assert result.status is TransitionStatus.OK
+    assert result.state is not None
+    assert result.reason is None
+    assert result.is_goal is False
+
+    # Lăn tới đứng ngay trên G (5, 6)
+    near = State(block_position=(3, 6), orientation=Orientation.VERTICAL)
+    win = engine.transition(near, Action.DOWN)
+    assert win.status is TransitionStatus.OK
+    assert win.is_goal is True
+
+
+def test_transition_result_illegal_reasons():
+    """Kiểm tra các mã lý do ILLEGAL: switch_cube_not_split và cube_collision."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+
+    r = engine.transition(State((5, 5), Orientation.STANDING), Action.SWITCH_CUBE)
+    assert r.status is TransitionStatus.ILLEGAL
+    assert r.state is None
+    assert r.reason == "switch_cube_not_split"
+
+    split = State(
+        block_position=(1, 1),
+        orientation=Orientation.STANDING,
+        split_mode=True,
+        cube1_position=(1, 1),
+        cube2_position=(1, 2),
+        active_cube=1,
+    )
+    collide = engine.transition(split, Action.RIGHT)
+    assert collide.status is TransitionStatus.ILLEGAL
+    assert collide.reason == "cube_collision"
+
+
+def test_transition_result_fall_reasons():
+    """Kiểm tra các mã lý do FALL: off_board, void, bridge_closed, fragile_standing."""
+    board = make_open_board(10, 10)
+    engine = Engine(board)
+
+    off = engine.transition(State((0, 5), Orientation.STANDING), Action.UP)
+    assert off.status is TransitionStatus.FALL
+    assert off.reason == "off_board"
+
+    void_board = parse_board({"name": "void_r", "grid": ["S#####", "###.##", "#####G"]})
+    void_engine = Engine(void_board)
+    v = void_engine.transition(State((1, 1), Orientation.STANDING), Action.RIGHT)
+    assert v.status is TransitionStatus.FALL
+    assert v.reason == "void"
+
+    closed = parse_board(
+        {
+            "name": "closed_r",
+            "grid": ["####", "#S#B", "####", "###G"],
+            "bridges": [{"id": "B1", "cell": [1, 3], "initial": "closed"}],
+        }
+    )
+    closed_engine = Engine(closed)
+    c = closed_engine.transition(closed_engine.get_initial_state(), Action.RIGHT)
+    assert c.status is TransitionStatus.FALL
+    assert c.reason == "bridge_closed"
+
+    fragile = parse_board(
+        {"name": "frag_r", "grid": ["#######", "S######", "###F###", "#######", "######G"]}
+    )
+    f_engine = Engine(fragile)
+    f1 = f_engine.transition(State((2, 0), Orientation.STANDING), Action.RIGHT)
+    assert f1.status is TransitionStatus.OK
+    assert f1.state is not None
+    f2 = f_engine.transition(f1.state, Action.RIGHT)
+    # Từ (2, 1)-(2, 2) HORIZONTAL lăn RIGHT -> STANDING tại (2, 3) là ô F -> rơi.
+    assert f2.status is TransitionStatus.FALL
+    assert f2.reason == "fragile_standing"
 
 
 # --- Integration smoke test ---
@@ -478,7 +605,7 @@ def test_integration_level1_bfs_reaches_goal():
             goal_state = current
             break
         for action in engine.legal_actions(current):
-            next_state = engine.transition(current, action)
+            next_state = step(engine, current, action)
             assert next_state is not None
             if next_state not in parent:
                 parent[next_state] = (current, action)
@@ -499,7 +626,7 @@ def test_integration_level1_bfs_reaches_goal():
     # Phát lại đường đi chỉ qua Engine API để xác nhận trạng thái đích
     replay = start
     for action in path:
-        next_state = engine.transition(replay, action)
+        next_state = step(engine, replay, action)
         assert next_state is not None
         replay = next_state
     assert engine.is_goal(replay)
