@@ -24,7 +24,7 @@ solvers/      IMPLEMENTED: bfs.py, dfs.py, ucs.py, astar.py, base_solver.py,
               search_result.py
 gui/          EMPTY: app.py, controller.py, renderer.py
 experiments/  EMPTY: benchmark.py, run_experiments.py, results.csv
-tests/        98 PASSING TESTS: test_transition.py, test_advanced_tiles.py,
+tests/        100 PASSING TESTS: test_transition.py, test_advanced_tiles.py,
               test_bfs/dfs/ucs/astar.py, test_integration.py, test_server.py
 levels/       level1-10.json all real (level1 is 5x10; level10 is the biggest)
 main.py       EMPTY (intended entrypoint: launches gui.app)
@@ -38,7 +38,7 @@ generated — ignore it.
 ## Commands (run from repo root; `uv` may be at `~/.local/bin/uv`)
 
 - Sync deps: `uv sync --dev`
-- All tests: `uv run pytest -q` (98 passing, ~5s)
+- All tests: `uv run pytest -q` (100 passing, ~5s)
 - One test: `uv run pytest tests/test_transition.py::test_name`
 - Lint: `uv run ruff check .`
 - Typecheck: `uv run pyright` (only `game` + `tests` are included — solvers/gui aren't checked yet)
@@ -151,14 +151,25 @@ Solvers must only use the Engine API (`legal_actions`, `transition`, `is_goal`,
 undo. Solver runs must not block the UI thread. Keybindings: arrows/WASD, `R`
 restart, `U`/Backspace undo, Space switch-cube / pause.
 
-## Docs (read only what you need — don't re-read everything)
+## Docs — four roles, one canonical owner per fact
+
+> **Read order on entry:** Map (`docs/index.md`) → Status (`docs/status.md`) → only the
+> history/ADR relevant to the task. Do not re-read everything.
+
+| Role      | Canonical source              | Keep it as                          |
+| --------- | ----------------------------- | ----------------------------------- |
+| Map       | `docs/index.md`               | what exists + ownership + jump table |
+| Status    | `docs/status.md`              | health, blockers, delete-zone        |
+| History   | `docs/engine.md`              | append-only decisions/removals       |
+
+Detail references:
 
 - `docs/api.md` — authoritative engine API contract + TV2/TV3/TV4/TV5 dependencies.
 - `docs/gui_api.md` — GUI/integration contract (state machine, replay, metrics).
 - `docs/Mô tả công việc.md` — module boundaries/interfaces across all 3 work groups.
 - `docs/tv1_engine_guide.md` — TV1 implementation guide (conventions + steps).
 - `docs/bloxorz_project_requirements.md` — course rubric/requirements.
-- `docs/plan.md` — roles and schedule.
+- `docs/plan.md` — historical role/schedule (superseded by `docs/status.md`).
 - `docs/engine.md` — append-only project decision log.
 
 ## Conventions / gotchas

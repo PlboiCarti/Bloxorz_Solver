@@ -1,5 +1,9 @@
 # plan
 
+> **Đã lịch sử (superseded).** Đây là lịch trình gốc của nhóm. Trạng thái hiện tại, blocker
+> và delete-zone xem [`status.md`](status.md); quyết định bền vững xem
+> [`engine.md`](engine.md). File này chỉ giữ để tham khảo lịch sử.
+
 ## vai trò
 
 Core Engine — thành viên 1
