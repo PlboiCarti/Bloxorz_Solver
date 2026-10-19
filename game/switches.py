@@ -148,7 +148,7 @@ def _build_bridges(board: Board) -> tuple[tuple[BridgeSpec, ...], dict[str, int]
     for i, raw in enumerate(board.bridges):
         where = f"bridges[{i}]"
         if not isinstance(raw, dict):
-            raise ValueError(f"{where}: mỗi cầu phải là một object.")
+            raise TypeError(f"{where}: mỗi cầu phải là một object.")
         bridge_id = raw.get("id")
         if not isinstance(bridge_id, str) or not bridge_id:
             raise ValueError(f"{where}: thiếu 'id' dạng chuỗi khác rỗng.")
@@ -180,7 +180,7 @@ def _build_switches(board: Board, index_by_id: dict[str, int]) -> tuple[SwitchSp
     for i, raw in enumerate(board.switches):
         where = f"switches[{i}]"
         if not isinstance(raw, dict):
-            raise ValueError(f"{where}: mỗi công tắc phải là một object.")
+            raise TypeError(f"{where}: mỗi công tắc phải là một object.")
         try:
             switch_type = SwitchType(raw.get("type"))
         except ValueError:
@@ -198,12 +198,12 @@ def _build_switches(board: Board, index_by_id: dict[str, int]) -> tuple[SwitchSp
 
         raw_targets = raw.get("targets", [])
         if not isinstance(raw_targets, list):
-            raise ValueError(f"{where}: 'targets' phải là một danh sách.")
+            raise TypeError(f"{where}: 'targets' phải là một danh sách.")
         targets: list[SwitchTarget] = []
         for j, raw_target in enumerate(raw_targets):
             twhere = f"{where}.targets[{j}]"
             if not isinstance(raw_target, dict):
-                raise ValueError(f"{twhere}: mỗi mục tiêu phải là một object.")
+                raise TypeError(f"{twhere}: mỗi mục tiêu phải là một object.")
             bridge_id = raw_target.get("bridge")
             if bridge_id not in index_by_id:
                 raise ValueError(f"{twhere}: không tồn tại cầu có id {bridge_id!r}.")
