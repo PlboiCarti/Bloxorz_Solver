@@ -18,15 +18,18 @@ You are currently on branch `engine`.
 ## Repo layout & implementation status (do not assume empty vs implemented)
 
 ```
-game/         IMPLEMENTED: actions.py, state.py, board.py, engine.py
-              EMPTY (TV2 stubs): split_block.py, switches.py, tiles.py
-solvers/      EMPTY: bfs.py, dfs.py, ucs.py, astar.py, base_solver.py, search_result.py
+game/         IMPLEMENTED: actions.py, state.py, board.py, engine.py, split_block.py,
+              switches.py, tiles.py (TV2 advanced mechanics done)
+solvers/      IMPLEMENTED: bfs.py, dfs.py, ucs.py, astar.py, base_solver.py,
+              search_result.py
 gui/          EMPTY: app.py, controller.py, renderer.py
 experiments/  EMPTY: benchmark.py, run_experiments.py, results.csv
-tests/        test_transition.py HAS 34 PASSING TESTS; all other test_*.py empty
-levels/       level1.json real (5x10); level2.json empty
+tests/        100 PASSING TESTS: test_transition.py, test_advanced_tiles.py,
+              test_bfs/dfs/ucs/astar.py, test_integration.py, test_server.py
+levels/       level1-10.json all real (level1 is 5x10; level10 is the biggest)
 main.py       EMPTY (intended entrypoint: launches gui.app)
-docs/         see "Docs" below (index.md empty)
+server.py     EXISTS: HTTP adapter (FastAPI) exposing Board/TransitionResult wire format
+docs/         see "Docs" below (index.md still empty)
 ```
 
 Everything under `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/` is
@@ -35,7 +38,7 @@ generated — ignore it.
 ## Commands (run from repo root; `uv` may be at `~/.local/bin/uv`)
 
 - Sync deps: `uv sync --dev`
-- All tests: `uv run pytest -q` (34 passing)
+- All tests: `uv run pytest -q` (100 passing, ~5s)
 - One test: `uv run pytest tests/test_transition.py::test_name`
 - Lint: `uv run ruff check .`
 - Typecheck: `uv run pyright` (only `game` + `tests` are included — solvers/gui aren't checked yet)
@@ -52,7 +55,8 @@ tests = success", but there are tests now.
 ```python
 from game import (
     Action, Board, BridgeStates, Cell, Engine, Orientation, State,
-    TileType, load_board, occupied_cells, parse_board,
+    TileType, TransitionResult, TransitionStatus, load_board,
+    occupied_cells, parse_board,
 )
 ```
 
@@ -84,21 +88,28 @@ class Engine:
     def __init__(self, board: Board) -> None: ...
     def get_initial_state(self) -> State: ...               # STANDING at board.start
     def legal_actions(self, state) -> list[Action]: ...     # derived from transition; goal NOT terminal
-    def transition(self, state, action) -> State | None: ...  # pure; None if off-board or hits VOID
+    def transition(self, state, action) -> TransitionResult: ...  # pure; OK/FALL/ILLEGAL (see below)
     def is_goal(self, state) -> bool: ...                   # STANDING on board.goal and not split_mode
     def step_cost(self, state, action, next_state) -> float: ...  # always 1.0 (placeholder)
-    # TV2 hooks (core returns trivial result): _roll, _cells_supported, _apply_tile_effects
+    # TV2 hooks (IMPLEMENTED: split mode, switches, bridges, fragile tiles)
 ```
 
 `Board` (frozen): `rows, cols, start, goal, grid, bridges, switches, name`;
 methods `in_bounds(cell) -> bool`, `tile_at(cell) -> TileType` (raises `IndexError` OOB).
 Loaders: `load_board(path) -> Board` (JSON file), `parse_board(dict) -> Board`.
 
+`TransitionResult` (frozen dataclass): `status` (`TransitionStatus.OK`/`FALL`/`ILLEGAL`),
+`state` (`State | None`, only non-None on OK), `is_goal: bool`, `reason: str | None`
+(`off_board`, `void`, `bridge_closed`, `fragile_standing`, `action_not_allowed`,
+`switch_cube_not_split`, `cube_collision`). "Falling" is never a state.
+
 Core rule notes:
-- Only off-board cells and `VOID` block a move; `FRAGILE`/`BRIDGE`/switch tiles are
-  parsed but treated as plain floor (`# TODO(TV2)` hooks exist in `engine.py`).
-- A lying block is supported on the goal but does **not** win.
-- Illegal-move outcomes are `transition(...) is None`; "falling" is never a state.
+- TV2 mechanics are live: `FRAGILE` breaks a standing block (lying is safe), `BRIDGE`
+  tiles toggle via switches (`SOFT_SWITCH`/`HEAVY_SWITCH`/`SPLIT_SWITCH`), split mode
+  lets two cubes move (SWITCH_CUBE legal in split mode) and only a non-split standing
+  block on the goal wins.
+- Illegal/fall outcomes come back as `TransitionResult` with `state=None`; consumers
+  check `status is TransitionStatus.OK`, never `is None`.
 
 ## Level JSON schema (must stay reusable across all solvers)
 
@@ -140,14 +151,25 @@ Solvers must only use the Engine API (`legal_actions`, `transition`, `is_goal`,
 undo. Solver runs must not block the UI thread. Keybindings: arrows/WASD, `R`
 restart, `U`/Backspace undo, Space switch-cube / pause.
 
-## Docs (read only what you need — don't re-read everything)
+## Docs — four roles, one canonical owner per fact
+
+> **Read order on entry:** Map (`docs/index.md`) → Status (`docs/status.md`) → only the
+> history/ADR relevant to the task. Do not re-read everything.
+
+| Role      | Canonical source              | Keep it as                          |
+| --------- | ----------------------------- | ----------------------------------- |
+| Map       | `docs/index.md`               | what exists + ownership + jump table |
+| Status    | `docs/status.md`              | health, blockers, delete-zone        |
+| History   | `docs/engine.md`              | append-only decisions/removals       |
+
+Detail references:
 
 - `docs/api.md` — authoritative engine API contract + TV2/TV3/TV4/TV5 dependencies.
 - `docs/gui_api.md` — GUI/integration contract (state machine, replay, metrics).
 - `docs/Mô tả công việc.md` — module boundaries/interfaces across all 3 work groups.
 - `docs/tv1_engine_guide.md` — TV1 implementation guide (conventions + steps).
 - `docs/bloxorz_project_requirements.md` — course rubric/requirements.
-- `docs/plan.md` — roles and schedule.
+- `docs/plan.md` — historical role/schedule (superseded by `docs/status.md`).
 - `docs/engine.md` — append-only project decision log.
 
 ## Conventions / gotchas

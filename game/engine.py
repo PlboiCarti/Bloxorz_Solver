@@ -1,13 +1,41 @@
 """Bộ điều khiển quy tắc và logic cốt lõi (Game Engine) của Bloxorz."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from enum import Enum
 
 from game import split_block
 from game.actions import Action, Orientation
 from game.board import Board
+from game.cost_config import DEFAULT_COST, CostConfig
 from game.state import Cell, State
 from game.switches import SwitchType, apply_targets, build_mechanics, is_triggered
-from game.tiles import is_cell_supported
+from game.tiles import support_failure
+
+
+class TransitionStatus(str, Enum):
+    """Kết quả của một bước chuyển trạng thái (theo `docs/gui_api.md` §3.3)."""
+
+    OK = "ok"            # Bước đi hợp lệ, đã áp dụng
+    FALL = "fall"        # Khối/khối lập phương rơi (VOID, ngoài biên, cầu đóng, fragile đứng)
+    ILLEGAL = "illegal"  # Hành động không hợp lệ từ trạng thái hiện tại; state giữ nguyên
+
+
+@dataclass(frozen=True, slots=True)
+class TransitionResult:
+    """Kết quả trả về của `Engine.transition`.
+
+    Attributes:
+        status: Trạng thái kết quả (OK/FALL/ILLEGAL).
+        state: Trạng thái mới, chỉ khác None khi `status == OK`.
+        is_goal: True nếu trạng thái mới thỏa điều kiện thắng.
+        reason: Mã lý do (lowercase) khi FALL/ILLEGAL, None khi OK.
+    """
+
+    status: TransitionStatus
+    state: State | None
+    is_goal: bool
+    reason: str | None = None
+
 
 # Thứ tự cố định khi trả về legal_actions theo quy ước đặc tả
 _ACTION_ORDER: tuple[Action, ...] = (
@@ -41,14 +69,21 @@ _ROLL_TABLE: dict[tuple[Orientation, Action], tuple[tuple[int, int], Orientation
 class Engine:
     """Game Engine chịu trách nhiệm thực thi toàn bộ luật chơi Bloxorz."""
 
-    def __init__(self, board: Board) -> None:
+    def __init__(
+        self, board: Board, cost_config: CostConfig = DEFAULT_COST
+    ) -> None:
         """Khởi tạo Game Engine với bản đồ tương ứng.
+
+        Args:
+            board: Bản đồ màn chơi.
+            cost_config: Cấu hình chi phí bước đi (mặc định `DEFAULT_COST`).
 
         Raises:
             ValueError: Nếu cấu hình cầu/công tắc của bản đồ không hợp lệ (TV2).
         """
         self.board = board
         self.mechanics = build_mechanics(board)
+        self._cost = cost_config
 
     def get_initial_state(self) -> State:
         """Trả về trạng thái ban đầu của màn chơi (khối đứng tại ô start 'S')."""
@@ -71,34 +106,33 @@ class Engine:
         return [
             action
             for action in _ACTION_ORDER
-            if self.transition(state, action) is not None
+            if self.transition(state, action).status is TransitionStatus.OK
         ]
 
-    def transition(self, state: State, action: Action) -> State | None:
-        """Hàm thuần túy (pure function) tính toán trạng thái tiếp theo sau hành động.
+    def transition(self, state: State, action: Action) -> TransitionResult:
+        """Hàm thuần túy (pure function) tính toán kết quả của một hành động.
 
-        Trả về None nếu bước đi không hợp lệ (rơi ra ngoài biên, vào VOID, cầu đóng,
-        hoặc đứng thẳng trên ô fragile).
+        Trả về `TransitionResult` với `status` là OK/FALL/ILLEGAL kèm `reason` tương ứng.
 
-        Luồng: di chuyển -> kiểm tra nền (cầu trước khi đặt xuống) -> hiệu ứng ô
-        (switch, cầu, split/merge) -> kiểm tra nền lần nữa với trạng thái cầu mới.
+        Luồng (theo `docs/gui_api.md` §3.3): di chuyển -> kiểm tra nền dưới trạng thái
+        cầu hiện tại -> hiệu ứng ô (switch, cầu, split/merge) -> kiểm tra nền lần nữa.
         """
         if state.split_mode:
             # SWITCH_CUBE: chỉ đổi khối điều khiển, không di chuyển, không kích hoạt ô
             if action == Action.SWITCH_CUBE:
-                return split_block.switch_active_cube(state)
+                return self._ok(split_block.switch_active_cube(state))
             candidate_state = split_block.move_active_cube(state, action)
             if candidate_state is None:
-                return None
+                return self._illegal("cube_collision")
         else:
             # SWITCH_CUBE chỉ có ý nghĩa khi ở split_mode
             if action == Action.SWITCH_CUBE:
-                return None
+                return self._illegal("switch_cube_not_split")
 
             # Áp dụng bảng chuyển đổi hình học
             roll_res = self._roll(state, action)
             if roll_res is None:
-                return None
+                return self._illegal("action_not_allowed")
 
             new_anchor, new_orientation = roll_res
             candidate_state = State(
@@ -111,17 +145,18 @@ class Engine:
                 active_cube=None,
             )
 
-        if not self._cells_supported(candidate_state, candidate_state.occupied_cells()):
-            return None
+        reason = self._support_failure(candidate_state, candidate_state.occupied_cells())
+        if reason is not None:
+            return self._fall(reason)
 
         result = self._apply_tile_effects(state, candidate_state)
 
         # Switch có thể đóng cầu ngay dưới khối, hoặc split dịch chuyển khối tới ô không có nền
-        if result is not candidate_state and not self._cells_supported(
-            result, result.occupied_cells()
-        ):
-            return None
-        return result
+        if result is not candidate_state:
+            reason = self._support_failure(result, result.occupied_cells())
+            if reason is not None:
+                return self._fall(reason)
+        return self._ok(result)
 
     def is_goal(self, state: State) -> bool:
         """Kiểm tra điều kiện chiến thắng: khối STANDING chính xác trên ô đích G."""
@@ -132,11 +167,31 @@ class Engine:
         )
 
     def step_cost(self, state: State, action: Action, next_state: State) -> float:
-        """Trả về chi phí bước đi (mặc định 1.0, kể cả SWITCH_CUBE)."""
-        # TODO(TV2/TV4): cấu hình hàm chi phí phi đồng nhất cho UCS/A*
-        return 1.0
+        """Trả về chi phí của một bước đi theo `CostConfig` hiện hành.
+
+        Chi phí phi đồng nhất theo tư thế: lăn từ STANDING (dịch neo 2 ô) tốn
+        `stand_roll`, lăn khi đang nằm (dịch 1 ô) tốn `lie_roll`; đổi khối điều
+        khiển trong split_mode tốn `switch_cube`.
+        """
+        if action == Action.SWITCH_CUBE:
+            return self._cost.switch_cube
+        if state.orientation == Orientation.STANDING:
+            return self._cost.stand_roll
+        return self._cost.lie_roll
 
     # --- Các hook mở rộng (TV2 đã cài đặt) ---
+
+    def _ok(self, state: State) -> TransitionResult:
+        """Tạo kết quả OK kèm đánh giá điều kiện thắng."""
+        return TransitionResult(TransitionStatus.OK, state, self.is_goal(state))
+
+    def _fall(self, reason: str) -> TransitionResult:
+        """Tạo kết quả FALL với lý do rơi."""
+        return TransitionResult(TransitionStatus.FALL, None, False, reason)
+
+    def _illegal(self, reason: str) -> TransitionResult:
+        """Tạo kết quả ILLEGAL với lý do không hợp lệ."""
+        return TransitionResult(TransitionStatus.ILLEGAL, None, False, reason)
 
     def _roll(self, state: State, action: Action) -> tuple[Cell, Orientation] | None:
         """Áp dụng bảng chuyển đổi (Section 3.3). Không kiểm tra nền."""
@@ -148,10 +203,10 @@ class Engine:
         new_anchor: Cell = (r + delta[0], c + delta[1])
         return new_anchor, new_orientation
 
-    def _cells_supported(self, state: State, cells: tuple[Cell, ...]) -> bool:
-        """Kiểm tra các ô `cells` có nâng đỡ được khối ở trạng thái `state` hay không.
+    def _support_failure(self, state: State, cells: tuple[Cell, ...]) -> str | None:
+        """Trả về lý do rơi của các ô `cells` trong ngữ cảnh `state`, hoặc None.
 
-        `state` là trạng thái đang được kiểm tra (cung cấp orientation, split_mode, bridge_states).
+        `state` cung cấp orientation, split_mode, bridge_states cho phép kiểm tra nền.
         - Ngoài bảng / VOID: không đỡ.
         - FRAGILE: vỡ khi khối 1x1x2 đứng thẳng lên.
         - BRIDGE: chỉ đỡ khi đang mở.
@@ -159,15 +214,12 @@ class Engine:
         full_block_standing = (
             not state.split_mode and state.orientation == Orientation.STANDING
         )
-        return all(
-            is_cell_supported(
-                self.board,
-                self.mechanics,
-                cell,
-                state.bridge_states,
-                full_block_standing=full_block_standing,
-            )
-            for cell in cells
+        return support_failure(
+            self.board,
+            self.mechanics,
+            cells,
+            state.bridge_states,
+            full_block_standing=full_block_standing,
         )
 
     def _apply_tile_effects(self, state: State, new_state: State) -> State:

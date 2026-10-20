@@ -1,6 +1,6 @@
 """Kiểm thử contract chung của BaseSolver."""
 
-from game import Action, Engine, State, parse_board
+from game import Action, Engine, State, TransitionStatus, parse_board
 from solvers.base_solver import BaseSolver, ParentMap
 
 
@@ -11,10 +11,11 @@ class FixedPathSolver(BaseSolver):
         parent: ParentMap = {initial_state: None}
         current = initial_state
         for action in (Action.RIGHT, Action.RIGHT):
-            next_state = self.engine.transition(current, action)
-            assert next_state is not None
-            parent[next_state] = (current, action)
-            current = next_state
+            result = self.engine.transition(current, action)
+            assert result.status is TransitionStatus.OK
+            assert result.state is not None
+            parent[result.state] = (current, action)
+            current = result.state
         return current, parent, 2
 
 
@@ -44,16 +45,17 @@ def test_base_solver_reconstructs_path_and_metrics() -> None:
     assert result.solved is True
     assert result.path == [Action.RIGHT, Action.RIGHT]
     assert result.solution_length == len(result.path) == 2
-    assert result.total_cost == 2.0
+    assert result.total_cost == 2.5
     assert result.expanded_nodes == 2
     assert result.search_time >= 0.0
     assert result.memory_usage >= 0.0
 
     current = initial_state
     for action in result.path:
-        next_state = engine.transition(current, action)
-        assert next_state is not None
-        current = next_state
+        transition = engine.transition(current, action)
+        assert transition.status is TransitionStatus.OK
+        assert transition.state is not None
+        current = transition.state
     assert engine.is_goal(current)
 
 
