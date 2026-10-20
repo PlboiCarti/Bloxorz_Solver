@@ -5,7 +5,7 @@
 
 # 1. Kiến trúc tổng thể
 
-Đồ án được chia thành ba nhóm công việc. Trong luồng hiện tại, phần TV5 đang nối chế độ chơi thủ công với Engine qua HTTP API Python; việc kết nối solver với giao diện chưa thuộc phạm vi tài liệu tích hợp này.
+Đồ án được chia thành ba nhóm công việc. Luồng hiện tại nối GUI với Engine qua HTTP API Python cho cả chơi thủ công lẫn giải tự động: GUI gửi state hiện tại tới `/solve`, rồi phát lại từng action qua `/transition`. Engine vẫn là nguồn chuẩn của luật và state.
 
 ```text
 ┌──────────────────┐      HTTP JSON       ┌───────────────────┐
@@ -20,7 +20,7 @@
                                              │ game/            │
                                              └──────────────────┘
 
-TV3/TV4 phát triển Solver riêng và dùng Engine Python. Việc đưa Solver vào GUI là luồng tích hợp khác, chưa mô tả trong phạm vi TV5 hiện tại.
+TV3/TV4 sở hữu các thuật toán Solver và dùng Engine Python. TV5 tích hợp chúng qua API; GUI không tự cài thuật toán hoặc luật Bloxorz.
 ```
 
 Nguyên tắc kiến trúc:
@@ -453,6 +453,7 @@ class SearchResult:
     expanded_nodes: int
     memory_usage: float
     solution_length: int
+    preprocessing_time: float = 0.0
 ```
 
 ---
@@ -497,6 +498,7 @@ Ví dụ:
 
 ```python
 result.search_time
+result.preprocessing_time
 result.memory_usage
 result.expanded_nodes
 result.solution_length
@@ -546,13 +548,14 @@ SearchResult
 ├── solution_length
 ├── total_cost
 ├── search_time
+├── preprocessing_time
 ├── expanded_nodes
 └── memory_usage
 ```
 
 Có thể mô tả ngắn gọn:
 
-> **Output của Công việc 2:** Một tập các Solver độc lập gồm BFS, DFS/IDS, UCS và A*, sử dụng API của Game Engine và trả về một SearchResult thống nhất chứa Solution Path và các metrics cần thiết.
+> **Output của Công việc 2:** Các Solver BFS, DFS, UCS và A* sử dụng API của Game Engine và trả về `SearchResult` thống nhất gồm solution path cùng metrics. IDS chưa có trong danh sách thuật toán được đăng ký hiện tại.
 
 ---
 
@@ -563,7 +566,7 @@ Có thể mô tả ngắn gọn:
 
 ## Phạm vi hiện tại
 
-TV5 nối giao diện chơi thủ công với Engine qua HTTP API Python. TV5 không viết lại luật, không import module game Python trong trình duyệt và không tự tính trạng thái kế tiếp. Phần nối solver vào GUI nằm ngoài phạm vi hiện tại.
+TV5 nối giao diện với Engine qua HTTP API Python cho thao tác thủ công và Solver. GUI gửi state hiện tại tới `/solve`, hiển thị metrics, rồi phát lại từng action bằng `/transition`. TV5 không viết lại luật, không import module game Python trong trình duyệt và không tự tính state kế tiếp.
 
 Các file đang tham gia luồng:
 

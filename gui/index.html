@@ -106,7 +106,7 @@
     .state-hud div { min-width: 0; display: grid; gap: 3px; text-align: center; }
     .state-hud span { color: #806a38; font-size: 8px; font-weight: 850; letter-spacing: .06em; }
     .state-hud strong { overflow: hidden; color: #483d28; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-    .input-hud { width: 136px; flex: 0 0 136px; }
+    .input-hud { width: 136px; flex: 0 0 136px; max-height: calc(100svh - 32px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
     .input-hud h2 { margin: 0 0 5px; color: #796334; font-size: 9px; text-align: center; letter-spacing: .12em; }
     .controls { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
     button { border-color: #e7c95c; color: #5d4c24; background: #fff8d8; min-height: 34px; font-size: 9px; box-shadow: 0 2px 0 #d3ad43; }
@@ -117,6 +117,8 @@
     .controls .empty { visibility: hidden; }
     .button-row { gap: 5px; margin-top: 7px; }
     .button-row button { min-height: 30px; padding: 2px 4px; font-size: 8px; }
+    .solver-actions { margin-top: 5px; }
+    .solver-actions #solve { min-height: 32px; font-size: 9px; letter-spacing: .04em; }
     .select-row { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 6px; color: #796334; font-size: 8px; font-weight: 800; }
     .select-row select { width: 100%; min-height: 27px; padding: 3px 5px; border: 1px solid #e7c95c; border-radius: 7px; background: #fff8d8; color: #5d4c24; font: inherit; font-size: 9px; }
     .solver-panel { position: absolute; z-index: 4; left: 20px; bottom: 20px; width: 220px; pointer-events: none; }
@@ -188,14 +190,14 @@
           <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M10 7.5 A4.5 4.5 0 0 0 10 16.5 M14 7.5 A4.5 4.5 0 0 1 14 16.5" fill="none" stroke="#9160d9" stroke-width="2.4" stroke-linecap="round"/></svg>Công tắc tách</span>
         </div>
         <section class="side-card solver-panel" aria-labelledby="solver-heading">
-          <h3 id="solver-heading">SOLVERS · TẠM KHÓA</h3>
+          <h3 id="solver-heading">SOLVERS · SẴN SÀNG</h3>
           <table class="solver-table" aria-label="Trạng thái các thuật toán tìm kiếm">
             <thead><tr><th>THUẬT TOÁN</th><th>TRẠNG THÁI</th></tr></thead>
             <tbody>
-              <tr><td>BFS</td><td><span class="solver-status">Chưa bật</span></td></tr>
-              <tr><td>DFS</td><td><span class="solver-status">Chưa bật</span></td></tr>
-              <tr><td>UCS</td><td><span class="solver-status">Chưa bật</span></td></tr>
-              <tr><td>A*</td><td><span class="solver-status">Chưa bật</span></td></tr>
+              <tr><td>BFS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>DFS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>UCS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>A*</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
             </tbody>
           </table>
         </section>
@@ -218,6 +220,17 @@
         <label class="select-row" for="level-select">MÀN
           <select id="level-select" disabled aria-label="Chọn màn chơi"></select>
         </label>
+        <label class="select-row" for="algorithm-select">THUẬT TOÁN
+          <select id="algorithm-select" aria-label="Chọn thuật toán tìm kiếm">
+            <option value="BFS">BFS</option>
+            <option value="DFS">DFS</option>
+            <option value="UCS">UCS</option>
+            <option value="ASTAR">A*</option>
+          </select>
+        </label>
+        <div class="button-row solver-actions">
+          <button id="solve" class="primary" aria-label="Tìm lời giải bằng solver Python" title="Tìm lời giải bằng solver Python">▶ SOLVE</button>
+        </div>
         <div class="controls">
           <button class="empty" tabindex="-1" aria-hidden="true"></button>
           <button data-move="U" aria-label="Lăn lên"><span class="arrow">↑</span><small>W / ↑</small></button>
@@ -228,14 +241,8 @@
         </div>
         <div class="button-row">
           <button id="new-game">NEW GAME</button>
+          <button id="undo" disabled>UNDO</button>
         </div>
-        <select id="algorithm-select" hidden disabled aria-label="Chọn thuật toán tìm kiếm">
-            <option value="BFS">BFS</option>
-            <option value="DFS">DFS</option>
-            <option value="UCS">UCS</option>
-            <option value="ASTAR">A*</option>
-        </select>
-        <div class="button-row"><button id="solve" class="primary" disabled aria-label="Solver tạm thời bị vô hiệu hóa" title="Solver đang tạm thời bị vô hiệu hóa">▶ SOLVE</button><button id="undo" disabled>UNDO</button></div>
         <div id="solver-metrics" class="solver-metrics" aria-live="polite"></div>
         <div class="replay-controls" aria-label="Điều khiển phát lại lời giải">
           <button id="replay-first" disabled aria-label="Về đầu lời giải" title="Về đầu">⏮</button>
@@ -267,7 +274,7 @@
   let currentLevel = null;
   let boardState = null;
   let apiReady = false;
-  let solverAvailable = false;
+  let solverAvailable = true;
   let controllerMode = 'SEARCHING';
   let busy = true;
   let moveCount = 0;
@@ -658,6 +665,10 @@
       if (numericFields.some(field => !Number.isFinite(result[field]))) {
         throw new Error('SearchResult thiếu một hoặc nhiều trường metrics dạng số.');
       }
+      const preprocessingTime = result.preprocessing_time ?? 0;
+      if (!Number.isFinite(preprocessingTime) || preprocessingTime < 0) {
+        throw new Error('SearchResult.preprocessing_time phải là số không âm.');
+      }
       if (result.solution_length !== result.path.length) {
         throw new Error('SearchResult.solution_length phải bằng độ dài path.');
       }
@@ -671,6 +682,7 @@
         path,
         totalCost: result.total_cost,
         searchTime: result.search_time,
+        preprocessingTime,
         memoryUsage: result.memory_usage,
         expandedNodes: result.expanded_nodes,
         solutionLength: result.solution_length,
@@ -1617,6 +1629,7 @@
       busy = false;
       controllerMode = 'ERROR';
       renderStatus(`Lỗi kết nối Python API: ${error.message}`);
+      updateControls();
       return false;
     }
     if (response.status === 'illegal') {
@@ -1628,6 +1641,7 @@
         playBlockedFeedback();
         renderStatus(response.reason || `Nước đi ${MOVE_LABEL[move]} không hợp lệ.`);
       }
+      updateControls();
       return false;
     }
     if (!fromSolver) {
@@ -1685,6 +1699,7 @@
     renderStatus(won
       ? 'Hoàn thành! Khối đã đứng thẳng trên ô đích.'
       : fromSolver ? 'Đang phát lại lời giải…' : `Đã lăn ${MOVE_LABEL[move]}.`);
+    updateControls();
     return true;
   }
 
@@ -1807,9 +1822,13 @@
 
   async function autoSolve() {
     if (busy || !apiReady || !solverAvailable) return;
+    stopReplayTimer();
+    clearReplay();
+    const metrics = document.getElementById('solver-metrics');
+    metrics.textContent = '';
+    metrics.removeAttribute('data-solved');
     busy = true;
     controllerMode = 'SEARCHING';
-    stopReplayTimer();
     updateControls();
     const algorithm = document.getElementById('algorithm-select').value;
     renderStatus(`Đang tìm đường bằng ${algorithm} trên Python…`);
@@ -1822,26 +1841,32 @@
       controllerMode = controllerMode === 'WON' || controllerMode === 'LOST'
         ? controllerMode
         : 'MANUAL_PLAY';
-      if (String(error.code || '').toLowerCase() === 'solver_not_available') {
+      if (error.status === 404 || error.status === 501 || String(error.code || '').toLowerCase() === 'solver_not_available') {
         solverAvailable = false;
-        renderStatus('Solver chưa được tích hợp. Bạn vẫn có thể chơi và di chuyển thủ công.');
+        document.getElementById('solver-heading').textContent = 'SOLVERS · KHÔNG KHẢ DỤNG';
+        document.querySelectorAll('.solver-status').forEach(status => { status.textContent = 'Không khả dụng'; });
+        renderStatus('API solver chưa khả dụng. Bạn vẫn có thể chơi và di chuyển thủ công.');
       } else {
         renderStatus(`Lỗi kết nối Python API: ${error.message}`);
       }
+      updateControls();
       return;
     }
     const algorithmLabel = algorithm === 'ASTAR' ? 'A*' : algorithm;
-    const metrics = document.getElementById('solver-metrics');
     metrics.dataset.solved = String(result.solved);
+    const timingSummary = result.preprocessingTime > 0
+      ? `${result.preprocessingTime.toFixed(4)} s H2 + ${Number(result.searchTime).toFixed(4)} s tìm kiếm`
+      : `${Number(result.searchTime).toFixed(4)} s tìm kiếm`;
     metrics.textContent =
       `${algorithmLabel} · ${result.solved ? 'Có lời giải' : 'Không có lời giải'}\n`
       + `${result.solutionLength} bước · cost ${result.totalCost}\n`
-      + `${Number(result.searchTime).toFixed(4)} s · ${Number(result.memoryUsage).toFixed(2)} MB\n`
+      + `${timingSummary} · ${Number(result.memoryUsage).toFixed(2)} MB\n`
       + `${Number(result.expandedNodes).toLocaleString()} nút đã mở rộng`;
     if (!result.solved) {
       clearReplay();
       controllerMode = 'MANUAL_PLAY';
       renderStatus(`Không tìm thấy lời giải bằng ${algorithmLabel}.`);
+      updateControls();
       return;
     }
     solutionPath = [...result.path];
@@ -1852,10 +1877,12 @@
       controllerMode = 'WON';
       await animateVictory();
       renderStatus('Trạng thái hiện tại đã là trạng thái đích; không có bước phát lại.');
+      updateControls();
       return;
     }
     controllerMode = 'REPLAY_PAUSED';
     renderStatus(`Tìm thấy lời giải ${algorithmLabel}: ${result.solutionLength} bước.`);
+    updateControls();
     await playReplay();
   }
 

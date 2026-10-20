@@ -12,11 +12,11 @@
    - Every movement, switch trigger, bridge toggle, split/merge, or win/loss condition **must** be evaluated exclusively through the backend endpoints (§2.1), which call `Engine.transition()` / `Engine.is_goal()`.
    - GUI-side geometry is allowed only to interpolate animations between states returned by the engine; it must never decide legality, landing cells, or victory.
 2. **Solver Decoupling:**
-   - The GUI does not implement search algorithms. The `/solve` route and Python solvers exist, but the current GUI keeps solver and replay controls disabled; their UI integration is outside the current manual-play flow.
+   - The GUI does not implement search algorithms. It calls /solve and replays the returned path through sequential /transition requests; Python remains authoritative for every step.
 3. **Non-blocking Search Execution:**
-   - `POST /solve` is a synchronous HTTP request with a hard server-side timeout; the backend executes the search off the async event loop (worker thread) (§4.3). The browser `fetch` is asynchronous, so the UI render thread is never blocked.
+   - `POST /solve` runs off the async event loop in a worker thread. At the 10-second deadline, the server returns `504` and signals cooperative cancellation; search and H2 loops check that signal at checkpoints (§4.3).
 4. **Deterministic Replay:**
-   - When solver/replay UI is re-enabled, a returned path (`list[Action]`) is to be played step-by-step through sequential `POST /transition` calls, with history for step-forward and step-backward navigation (§7). This flow is currently inactive in the GUI.
+   - The GUI sends a returned path (`list[Action]`) step-by-step through sequential `POST /transition` calls, with history for step-forward and step-backward navigation (§7).
 5. **Stateless Backend, Client-owned Session:**
    - `/transition` and `/solve` keep no server-side session or hidden state: every request carries the level name and the full current state.
    - The GUI owns the only game session: `currentState`, snapshot `history`, `initialState`, replay index (§7). There is no server undo/reset endpoint; `GET /levels/{name}` always returns a fresh `initial_state`.
@@ -44,7 +44,7 @@ levels/                 # shared level JSON files
 
 The tree above is the target modular layout. The current GUI is consolidated in `gui/index.html` with inline JavaScript; it is owned by TV5 and uses Three.js. Algorithms and the engine remain in Python. The two sides communicate through the HTTP endpoints in §2.1, and the current server serves the GUI and `/assets/*` from the same origin.
 
-**Repository implementation note (2026-10-20):** `server.py` implements the FastAPI adapter, including `/transition` and `/solve`, and serves `gui/index.html` plus `/assets/*`. It serializes board/state data and transition results using this wire contract. BFS, DFS, UCS, and A* are registered in the server, but the current GUI disables solver and replay controls; this task's active GUI flow is manual play through `/transition`.
+**Repository implementation note (2026-10-20):** `server.py` implements the FastAPI adapter, including `/transition` and `/solve`, and serves `gui/index.html` plus `/assets/*`. It serializes board/state data and transition results using this wire contract. BFS, DFS, UCS, and A* are registered in the server. The current GUI exposes algorithm selection, calls `/solve`, displays search metrics, and replays the returned actions through sequential `/transition` calls.
 
 ### 2.1 Backend HTTP API
 
@@ -381,26 +381,20 @@ Additional rules:
 - The backend may expose `engine.legal_actions(state)` for UI hints; there is no endpoint for it in v1. `legal_actions` does **not** treat the goal as terminal.
 - The GUI never pre-filters input by local rules; an illegal action is answered by the server.
 
-### 3.4 Move Cost
+### 3.4 Move Cost and A* Heuristic
 
 ```python
 def step_cost(self, state: State, action: Action, next_state: State) -> float: ...
 ```
 
-- `PENDING (team)`: the current TEMPORARY implementation (`docs/api.md` §6.2) returns `1.0` for every legal move. UCS and A\* consume this value rather than inventing weights.
-- `total_cost` = sum of `step_cost` over the path; with unit costs it equals `solution_length`.
+- Current code defaults (`game/cost_config.py`): `stand_roll=1.5`, `lie_roll=1.0`, and `switch_cube=0.1`; `bridge_cross_penalty=0.3` is not currently applied. These values still need team confirmation.
+- `CostConfig` rejects negative or non-finite values because UCS/A* require non-negative edge costs.
+- `total_cost` = sum of `step_cost` over the path; with these non-unit costs it may differ from `solution_length`.
 - **BFS, DFS:** ignore cost during search; still report `total_cost` as the sum.
 - **UCS:** priority `g` = sum of `step_cost` from start.
-- **A\*:** `f = g + h` with an admissible `h`. While costs are unit:
+- **A\*:** `f = g + h`. The current implementation uses precomputed, cost-aware H2 by default. It keeps roll geometry/orientation and static VOID topology, relaxes fragile/bridge effects, and can include split cube-pair states. Engine passes static inputs through `HeuristicContext`.
 
-  ```python
-  if not split_mode:
-      h = ceil(manhattan(anchor, goal) / 2)
-  else:
-      h = 0   # CONFIRMED: cubes must merge and stand on the goal; keeps h admissible
-  ```
-
-  Justification: one roll changes the block's anchor by at most 2 cells in Manhattan distance. If a non-uniform cost table is approved, scale `h` by the minimum edge cost and update this section together with `docs/api.md` §6.2.
+  H2 runs reverse Dijkstra over the relaxed abstract graph. The branch enables `split_aware=True`, so split states use the abstract cube-pair distance instead of the older `h=0` fallback. Treat admissibility/consistency as requiring verification against the final transition and cost semantics; do not claim solver optimality until that review is complete.
 
 ---
 
@@ -435,6 +429,7 @@ class SearchResult:
     memory_usage: float     # MB, peak (e.g. 12.4)
     expanded_nodes: int     # e.g. 350
     solution_length: int    # len(path), e.g. 28
+    preprocessing_time: float = 0.0  # H2 build time; 0 for other solvers
 ```
 
 `POST /solve` returns this object **directly** (no `result` envelope):
@@ -447,7 +442,8 @@ class SearchResult:
   "search_time": 0.042,
   "memory_usage": 12.4,
   "expanded_nodes": 350,
-  "solution_length": 3
+  "solution_length": 3,
+  "preprocessing_time": 0.0
 }
 ```
 
@@ -455,16 +451,17 @@ Rules:
 
 - `path` contains action strings (§2.1); `solution_length == len(path)`. `SWITCH_CUBE` entries are legal by construction.
 - `solved == false` means "search exhausted, no solution exists": `path: []`, `solution_length: 0`, `total_cost: 0.0`; metrics are still reported.
-- `search_time` = wall-clock seconds; `memory_usage` = peak MB (`tracemalloc` peak bytes / 1e6); `expanded_nodes` = number of frontier states expanded.
+- `search_time` = solver search plus path/result construction; A* H2 construction is reported separately in `preprocessing_time` (0 for BFS/DFS/UCS or injected heuristics). Solver-side elapsed time is `search_time + preprocessing_time`.
+- `memory_usage` = peak traced MB during the solver call. Measurement is serialized because `tracemalloc` is process-global; an H2 cache built by an earlier call is already allocated before the next measurement. If an external profiler already owns tracing, this field is `0` (unavailable).
+- `expanded_nodes` = popped non-goal states whose successors were generated. Goal states are not counted, including an initial state that is already the goal.
 - All metrics are finite JSON numbers — never `NaN`, `Infinity`, or `null`; an unavailable metric is `0`.
 - Solving starts from the `state` sent in the request (usually the current GUI state).
 
 ### 4.3 `POST /solve` — Non-blocking & Timeouts
 
-- The endpoint is **synchronous with a hard timeout**: it returns `SearchResult` when the search finishes, or `504 SOLVER_TIMEOUT` when the budget `SOLVE_TIMEOUT_SECONDS` (default `10`, documented constant) is exceeded.
+- The endpoint returns `SearchResult` when the worker finishes, or `504 SOLVER_TIMEOUT` when `SOLVE_TIMEOUT_SECONDS` (default `10`) is reached. On timeout or client cancellation, the server sets a cancellation event; solver and H2 loops stop at their next checkpoint.
 - The backend runs the solver in a worker thread so the async event loop stays responsive; the GUI `fetch` is asynchronous and the UI thread stays free (spinner + `SEARCHING` mode).
-- Unknown algorithm → `400 UNKNOWN_ALGORITHM`. The current server registers BFS, DFS, UCS, and ASTAR. The GUI does not call this route while solver controls are disabled.
-- The GUI drops stale responses (user restarted or switched level meanwhile) using a request-id.
+- Unknown algorithm → `400 UNKNOWN_ALGORITHM`. The current server registers BFS, DFS, UCS, and ASTAR. The GUI submits the selected algorithm and current state to this route.
 
 ### 4.4 Metrics Display Panel
 
@@ -477,6 +474,7 @@ Upon receiving `SearchResult`, the GUI updates the metrics sidebar:
 | **Solution Length** | `result.solution_length` | Integer steps (e.g. `24 moves`) |
 | **Total Cost** | `result.total_cost` | Float / Int (e.g. `24.0`) |
 | **Execution Time** | `result.search_time` | Seconds (`{time:.4f} s` or `{time*1000:.1f} ms`) |
+| **H2 Preprocessing** | `result.preprocessing_time` | Seconds; shown separately from A* search |
 | **Memory Peak** | `result.memory_usage` | Megabytes (`{memory:.2f} MB`) |
 | **Nodes Expanded** | `result.expanded_nodes` | Integer (`{nodes:,}`) |
 
@@ -569,8 +567,8 @@ export class UI {
 
 - **Stage Selector:** Dropdown listing available levels from `GET /levels`.
 - **Game Controls:** `New Game`, `Restart Level`, `Undo` (exact semantics in §7.1).
-- **Solver Buttons:** `Solve BFS`, `Solve DFS`, `Solve UCS`, `Solve A*`; temporarily disabled in the current GUI.
-- **Replay Bar and Speed Slider:** present in the UI but unavailable while solver integration is disabled.
+- **Solver Buttons:** BFS, DFS, UCS and A*; enabled when the level/API is ready.
+- **Replay Bar and Speed Slider:** control returned-path playback; each forward step is validated through /transition.
 
 ---
 
@@ -630,7 +628,7 @@ Contract smoke tests (each test states the request and expected response; some n
 5. Transition `illegal` keeps `state: null` and the client state unchanged; an illegal action is never mistaken for a fall.
 6. Transition `fall` returns `state: null`, the correct `reason`, and rejected geometry in `fall_state`; GUI animates into the trap then enters `LOST`; `history`/`currentState` unchanged.
 7. Advanced tiles (TV2, implemented): `P` teleport/split, `SWITCH_CUBE`, cube movement/merge, soft/heavy activation rules, closed-bridge fall (`bridge_closed`), fragile-standing fall (`fragile_standing`) — all visible in the result state.
-8. `PENDING (TV3/TV4)`: each announced solver returns a schema-conform `SearchResult`; replaying the returned path ends `isGoal: true` at the goal.
+8. Solver integration check: each registered algorithm returns a schema-conform `SearchResult`; replay each solved path through `POST /transition` and verify the final state is the goal. The GUI follows this sequence; this contract check still needs to be run.
 9. Error contract (§2.2): no solution, unknown algorithm, solver not available, malformed request, unknown level, timeout — every body is JSON with `error.code`.
 10. Undo/replay: state stays in sync after each step; replay stops at the first non-`ok` step; Undo works after `fall` and after `WON`.
 
@@ -654,16 +652,19 @@ Contract smoke tests (each test states the request and expected response; some n
 | :--- | :--- | :--- |
 | `TransitionResult` as the Python Engine return type | TV1/TV2 | Implemented in `game/`; HTTP adapter emits the contract result |
 | Bridge/switch metadata schema; `bridge_states` representation; split-mode state semantics | TV2 | Implemented by `game/board.py`, `game/engine.py`, and the HTTP adapter |
-| Cost function for UCS/A\* (`step_cost`) | team | TEMPORARY `1.0` (`docs/api.md` §6.2) |
+| Cost function for UCS/A\* (`step_cost`) | team | Current defaults 1.5/1.0/0.1; confirm final semantics (`docs/api.md` §6.2) |
 | `server.py` FastAPI backend (endpoints, worker thread, timeout) | TV1/TV2 | `/transition` and `/solve` routes, worker execution, and timeout are implemented |
 | BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Present and registered; cost/heuristic semantics still require team confirmation before relying on UCS/A* results |
-| Solver/replay GUI controls | TV5 | Temporarily disabled; current GUI integration scope is manual play |
+| Solver/replay GUI controls | TV5 | Integrated with /solve and sequential /transition replay |
 | Static serving vs CORS decision | TV5/lead | Same-origin static serving implemented; cross-origin deployment needs explicit CORS configuration |
 
 ---
 
 ## Changelog
 
+- v9 (2026-10-20): documented cooperative solve cancellation and metric semantics; added `preprocessing_time` to the SearchResult wire schema.
+- v8 (2026-10-20): enabled GUI solver selection and connected /solve to replay through /transition.
+- v7 (2026-10-20): synchronized solver_v2 H2, recorded current weighted costs and the need to confirm H2 guarantees; preserved fall_state compatibility.
 - v6 (2026-10-20): natural level ordering; added visual-only `fall_state` so the GUI drops into the rejected trap cell without committing it; recorded that solver/replay UI is disabled.
 - v5 (2026-10-17): records the running `gui/index.html` + standard-library server layout, implemented HTTP wire serialization/validation, same-origin serving, and the remaining internal Engine/FastAPI/solver work.
 - v4 (2026-10-17): TV2 semantics finalized, no TV2 assumptions left. Added: bridge/switch metadata schema + loader validation + switch activation/bridge effect rules + fragile support (§3.1); split-mode state/merge/goal rules (§3.2); transition pipeline + new reasons `bridge_closed`/`cube_collision` + split-switch/`SWITCH_CUBE` rules (§3.3); A\* split heuristic fixed at `h = 0` (§3.4). Updated Space binding, smoke test 7 and open items.

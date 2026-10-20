@@ -1,56 +1,64 @@
-"""Thuật toán tìm kiếm theo chiều sâu (DFS) — TV3."""
+"""Thuật toán tìm kiếm theo chiều sâu (DFS)."""
 
-import time
-import tracemalloc
+from __future__ import annotations
 
+from threading import Event
+
+from game.actions import Action
 from game.engine import Engine, TransitionStatus
 from game.state import State
-from solvers.base_solver import ParentMap, finalize, reconstruct_path
+from solvers.base_solver import BaseSolver, ParentMap
+from solvers.runtime import check_cancelled
 from solvers.search_result import SearchResult
 
 
-def solve(initial_state: State, engine: Engine) -> SearchResult:
-    """Tìm lời giải bằng DFS (graph search, dùng visited để tránh lặp vô hạn).
+class DFSSolver(BaseSolver):
+    """DFS graph search dùng stack tường minh và thứ tự hành động ổn định."""
 
-    DFS không đảm bảo tối ưu; dùng `visited` để đảm bảo kết thúc trên không gian hữu hạn.
-    """
-    tracemalloc.start()
-    started = time.perf_counter()
+    def _search(self, initial_state: State) -> tuple[State | None, ParentMap, int]:
+        stack: list[tuple[State, State | None, Action | None]] = [
+            (initial_state, None, None)
+        ]
+        visited: set[State] = set()
+        parent: ParentMap = {}
+        expanded_nodes = 0
 
-    parent: ParentMap = {initial_state: None}
-    visited: set[State] = {initial_state}
-    stack: list[State] = [initial_state]
-    expanded = 0
-    goal_state: State | None = None
-
-    while stack:
-        state = stack.pop()
-        expanded += 1
-        if engine.is_goal(state):
-            goal_state = state
-            break
-        actions = engine.legal_actions(state)
-        # Đẩy ngược để trạng thái lấy ra tuân theo đúng thứ tự khai báo
-        for action in reversed(actions):
-            result = engine.transition(state, action)
-            if result.status is not TransitionStatus.OK or result.state is None:
+        while stack:
+            check_cancelled()
+            current, previous, action_from_previous = stack.pop()
+            if current in visited:
                 continue
-            nxt = result.state
-            if nxt not in visited:
-                visited.add(nxt)
-                parent[nxt] = (state, action)
-                stack.append(nxt)
 
-    elapsed = time.perf_counter() - started
-    memory = tracemalloc.get_traced_memory()[1] / 1e6
-    tracemalloc.stop()
+            visited.add(current)
+            parent[current] = (
+                None
+                if previous is None or action_from_previous is None
+                else (previous, action_from_previous)
+            )
+            if self.engine.is_goal(current):
+                return current, parent, expanded_nodes
 
-    if goal_state is None:
-        return finalize(
-            engine, initial_state, solved=False, path=[], expanded_nodes=expanded,
-            search_time=elapsed, memory_usage=memory,
-        )
-    return finalize(
-        engine, initial_state, solved=True, path=reconstruct_path(parent, goal_state),
-        expanded_nodes=expanded, search_time=elapsed, memory_usage=memory,
-    )
+            expanded_nodes += 1
+            successors: list[tuple[State, Action]] = []
+            for action in self.engine.legal_actions(current):
+                check_cancelled()
+                result = self.engine.transition(current, action)
+                if result.status is not TransitionStatus.OK or result.state is None:
+                    continue
+                if result.state not in visited:
+                    successors.append((result.state, action))
+
+            for next_state, action in reversed(successors):
+                stack.append((next_state, current, action))
+
+        return None, parent, expanded_nodes
+
+
+def solve(
+    initial_state: State,
+    engine: Engine,
+    *,
+    cancel_event: Event | None = None,
+) -> SearchResult:
+    """Giải bài toán bằng DFS theo API solver thống nhất."""
+    return DFSSolver(engine).solve(initial_state, cancel_event=cancel_event)

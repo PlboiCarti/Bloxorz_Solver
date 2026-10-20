@@ -15,7 +15,9 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from functools import partial
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 import uvicorn
@@ -130,7 +132,14 @@ def _search_json(result: SearchResult) -> dict[str, Any]:
         "memory_usage": result.memory_usage,
         "expanded_nodes": result.expanded_nodes,
         "solution_length": result.solution_length,
+        "preprocessing_time": result.preprocessing_time,
     }
+
+
+def _consume_future_exception(future: asyncio.Future[Any]) -> None:
+    """Đọc lỗi của worker đã timeout để tránh warning future chưa được xử lý."""
+    if not future.cancelled():
+        future.exception()
 
 
 # --- Validation ---
@@ -273,7 +282,7 @@ async def transition(request: Request) -> dict[str, Any]:
 
 @app.post("/solve")
 async def solve(request: Request) -> dict[str, Any]:
-    """Chạy Solver trong worker thread với timeout cứng, trả về SearchResult."""
+    """Chạy solver trong worker thread, deadline và hủy hợp tác."""
     data = await _read_json(request)
     engine = _engine_for(data.get("level"))
     algorithm = data.get("algorithm")
@@ -282,12 +291,23 @@ async def solve(request: Request) -> dict[str, Any]:
     state = _parse_state(engine, data.get("state"))
 
     solver = _SOLVERS[algorithm]
+    cancel_event = Event()
     loop = asyncio.get_running_loop()
-    future = loop.run_in_executor(None, solver, state, engine)
+    future = loop.run_in_executor(
+        None,
+        partial(solver, state, engine, cancel_event=cancel_event),
+    )
+    future.add_done_callback(_consume_future_exception)
     try:
-        result = await asyncio.wait_for(future, timeout=SOLVE_TIMEOUT_SECONDS)
+        result = await asyncio.wait_for(
+            asyncio.shield(future), timeout=SOLVE_TIMEOUT_SECONDS
+        )
     except TimeoutError:
+        cancel_event.set()
         raise ApiError(504, "SOLVER_TIMEOUT", "Search exceeded the time budget.") from None
+    except asyncio.CancelledError:
+        cancel_event.set()
+        raise
     return _search_json(result)
 
 

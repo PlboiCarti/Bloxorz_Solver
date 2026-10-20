@@ -1,9 +1,6 @@
-"""Cấu hình hàm chi phí `step_cost` của Engine (TV2).
+"""Cấu hình cost `step_cost` của Engine; giá trị phải hữu hạn và không âm."""
 
-Chi phí phi đồng nhất giúp UCS/A* (TV4) phân biệt đường đi theo tư thế khối,
-vẫn giữ heuristic hiện hành của A* admissible (mọi bước lăn tốn >= 1.0).
-"""
-
+import math
 from dataclasses import dataclass
 
 
@@ -23,6 +20,23 @@ class CostConfig:
     lie_roll: float = 1.0
     switch_cube: float = 0.1
     bridge_cross_penalty: float = 0.3
+
+    def __post_init__(self) -> None:
+        """Dijkstra/UCS/A* chỉ hỗ trợ cost hữu hạn và không âm."""
+        for name, value in (
+            ("stand_roll", self.stand_roll),
+            ("lie_roll", self.lie_roll),
+            ("switch_cube", self.switch_cube),
+            ("bridge_cross_penalty", self.bridge_cross_penalty),
+        ):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a finite non-negative number.")
+            try:
+                valid = math.isfinite(value) and value >= 0
+            except OverflowError:
+                valid = False
+            if not valid:
+                raise ValueError(f"{name} must be a finite non-negative number.")
 
 
 DEFAULT_COST = CostConfig()

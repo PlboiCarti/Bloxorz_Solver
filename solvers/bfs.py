@@ -1,50 +1,49 @@
-"""Thuật toán tìm kiếm theo chiều rộng (BFS) — TV3."""
+"""Thuật toán tìm kiếm theo chiều rộng (BFS)."""
 
-import time
-import tracemalloc
+from __future__ import annotations
+
 from collections import deque
+from threading import Event
 
 from game.engine import Engine, TransitionStatus
 from game.state import State
-from solvers.base_solver import ParentMap, finalize, reconstruct_path
+from solvers.base_solver import BaseSolver, ParentMap
+from solvers.runtime import check_cancelled
 from solvers.search_result import SearchResult
 
 
-def solve(initial_state: State, engine: Engine) -> SearchResult:
-    """Tìm lời giải bằng BFS (tối ưu theo số bước khi mọi chi phí bằng nhau)."""
-    tracemalloc.start()
-    started = time.perf_counter()
+class BFSSolver(BaseSolver):
+    """BFS graph search, ưu tiên hành động theo ``Engine.legal_actions``."""
 
-    parent: ParentMap = {initial_state: None}
-    frontier: deque[State] = deque([initial_state])
-    expanded = 0
-    goal_state: State | None = None
+    def _search(self, initial_state: State) -> tuple[State | None, ParentMap, int]:
+        parent: ParentMap = {initial_state: None}
+        queue: deque[State] = deque([initial_state])
+        expanded_nodes = 0
 
-    while frontier:
-        state = frontier.popleft()
-        expanded += 1
-        if engine.is_goal(state):
-            goal_state = state
-            break
-        for action in engine.legal_actions(state):
-            result = engine.transition(state, action)
-            if result.status is not TransitionStatus.OK or result.state is None:
-                continue
-            nxt = result.state
-            if nxt not in parent:
-                parent[nxt] = (state, action)
-                frontier.append(nxt)
+        while queue:
+            check_cancelled()
+            current = queue.popleft()
+            if self.engine.is_goal(current):
+                return current, parent, expanded_nodes
 
-    elapsed = time.perf_counter() - started
-    memory = tracemalloc.get_traced_memory()[1] / 1e6
-    tracemalloc.stop()
+            expanded_nodes += 1
+            for action in self.engine.legal_actions(current):
+                check_cancelled()
+                result = self.engine.transition(current, action)
+                if result.status is not TransitionStatus.OK or result.state is None:
+                    continue
+                if result.state not in parent:
+                    parent[result.state] = (current, action)
+                    queue.append(result.state)
 
-    if goal_state is None:
-        return finalize(
-            engine, initial_state, solved=False, path=[], expanded_nodes=expanded,
-            search_time=elapsed, memory_usage=memory,
-        )
-    return finalize(
-        engine, initial_state, solved=True, path=reconstruct_path(parent, goal_state),
-        expanded_nodes=expanded, search_time=elapsed, memory_usage=memory,
-    )
+        return None, parent, expanded_nodes
+
+
+def solve(
+    initial_state: State,
+    engine: Engine,
+    *,
+    cancel_event: Event | None = None,
+) -> SearchResult:
+    """Giải bài toán bằng BFS theo API solver thống nhất."""
+    return BFSSolver(engine).solve(initial_state, cancel_event=cancel_event)

@@ -8,7 +8,7 @@
 ## 1. Architectural & Integration Principles
 
 1. **Single Source of Truth:** The `Engine` is the **only** module that contains and enforces Bloxorz game rules.
-2. **Solver Isolation:** Solvers never inspect tiles, switches, or board details directly. They interact with the game solely via the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`).
+2. **Solver Isolation:** Search algorithms interact with the game through the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`). A* heuristics additionally receive an immutable `HeuristicContext` snapshot from Engine; they do not inspect mutable board/mechanics internals.
 3. **GUI Purity:** The GUI never decides game transitions. The browser sends actions through `server.py` over HTTP; the adapter calls `Engine.transition()` and returns the authoritative result for rendering.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
 5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A\*) return the identical `SearchResult` data structure.
@@ -162,7 +162,7 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 
 #### `step_cost(state: State, action: Action, next_state: State) -> float`
 
-- `[TEMPORARY - Section 6.2]` Returns `1.0` by default in TV1.
+- Current default (`game/cost_config.py`): `1.5` for a roll from STANDING, `1.0` for a roll while lying, and `0.1` for `SWITCH_CUBE`.
 - Provides edge weight / step cost for UCS and A\*.
 
 ### 4.2 Board & Level Loader (`game/board.py`)
@@ -239,6 +239,7 @@ class SearchResult:
     memory_usage: float
     expanded_nodes: int
     solution_length: int
+    preprocessing_time: float = 0.0
 ```
 
 ---
@@ -253,17 +254,20 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 - Phần tử thứ $i$ tương ứng với cầu thứ $i$ theo thứ tự danh sách `bridges` trong file JSON của màn chơi (`True` = mở/đi được, `False` = đóng/như void). Nếu màn chơi không có cầu thì là `()`.
 - Hashing và equality của State được bảo toàn tuyệt đối, tương thích serialization `to_dict` / `from_dict`.
 
-### 6.2 Cost Function (`TEMPORARY — owner: team, consumed by TV4`)
+### 6.2 Cost Function (current implementation; confirm with the team)
 
-- `step_cost` returns `1.0`; this placeholder is confirmed.
-- BFS/DFS (TV3) are unaffected. UCS/A\* (TV4) must not invent weights; they wait for the team's final cost specification.
-- When agreed, change `Engine.step_cost` in one place and update this doc.
+- `CostConfig` defaults to `stand_roll=1.5`, `lie_roll=1.0`, and `switch_cube=0.1`.
+- All configured costs must be finite and non-negative; UCS/A* rely on this condition.
+- `bridge_cross_penalty=0.3` is reserved and currently unused by `Engine.step_cost`.
+- BFS/DFS find paths by action count and report their Engine-computed path cost. UCS/A* use weighted `step_cost` for path selection.
+- `search_time` measures search and result construction. A* reports H2 build time separately as `preprocessing_time`; `expanded_nodes` counts popped non-goal states whose successors were generated.
+- This is the current code behavior, not a finalized project-wide cost decision; confirm it before interpreting solver comparisons or optimality claims.
 
 ### 6.3 Level JSON Format (`CONFIRMED`)
 
 - Approved wire/input format: character grid (`#`: floor, `.`: void, `S`: start, `G`: goal, `F`: fragile, `B`: bridge, `o`: soft switch, `x`: heavy switch, `P`: split switch) plus metadata lists `bridges`/`switches`. `game/board.py` parses and validates this format; `server.py` uses the resulting `Board`.
 - TV2 owns the other level files; every level must use this schema so it stays reusable across all solvers.
-- If the schema ever changes, the loader, this doc, and `docs/engine.md` change together.
+- If the schema ever changes, update the loader and this contract; record the integration change in `docs/CHANGELOG.md`.
 
 **Complete example** (`levels/level10.json`, which exercises every tile type):
 
@@ -353,5 +357,5 @@ The engine applies switch effects deterministically: it inspects the resulting b
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
 | TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | —                                    |
 | TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract              | Solver modules and level set         |
-| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                   | Solver modules and final cost rule   |
+| TV4 (UCS/A\*)            | Solver modules and current weighted cost implementation               | Final team confirmation of costs and H2 guarantees |
 | TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema           | Solver outputs and final cost values |

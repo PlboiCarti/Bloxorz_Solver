@@ -49,9 +49,9 @@ sections and APIs between these responsibilities:
    plays accepted transitions; it must not independently accept/reject moves.
 
 Keep boundaries explicit: user input → API adapter → Python game → response →
-renderer. Search/replay is a separate flow and is currently disabled in the
-GUI. Do not couple rendering to HTTP details or duplicate backend rules in the
-UI.
+renderer. Search is a separate backend flow; the GUI invokes it through
+POST /solve and replays each returned action through POST /transition. Do not
+couple rendering to HTTP details or duplicate backend rules in the UI.
 
 ### Current integration constraints
 
@@ -60,8 +60,11 @@ UI.
   when validating board bounds; the HTTP state does not carry this field.
 - The GUI places the ordinary block using `block_position` and `orientation`,
   and places split cubes using `cube1_position` / `cube2_position`.
-- Solver controls are temporarily disabled in the GUI. Do not re-enable them
-  as part of Engine-to-GUI work.
+- Solver controls are integrated with /solve; replay must apply every action through
+  /transition. Keep Python as the source of truth for all resulting states.
+- Solver requests run in worker threads with cooperative cancellation at search and
+  H2 preprocessing checkpoints. Peak-memory measurement is serialized because
+  `tracemalloc` is process-global.
 
 ## 3. GUI requirements
 
@@ -69,8 +72,8 @@ UI.
 - Support standing, horizontal, and vertical block orientations.
 - Animate rolling around the correct pivot edge.
 - Support keyboard and GUI-button controls.
-- Provide New Game, Restart, and manual movement controls. Solver and replay
-  controls remain disabled until their integration is explicitly resumed.
+- Provide New Game, Restart, manual movement, solver selection, and replay
+  controls. Solver paths come from /solve; replay transitions go through Python.
 - Display backend errors and rejected moves clearly.
 
 ## 4. Special tiles

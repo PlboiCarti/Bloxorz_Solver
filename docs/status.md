@@ -1,33 +1,35 @@
 # Status
 
 > **Role: Status.** Sức khoẻ hiện tại, blocker, và delete-zone.
-> Không chứa cấu trúc (xem `docs/index.md`) hay quyết định (xem `docs/engine.md`).
+> Không chứa cấu trúc (xem `docs/index.md`) hay lịch sử (xem `docs/CHANGELOG.md`).
 >
-> Cập nhật lần cuối: **2026-10-19**.
+> Cập nhật lần cuối: **2026-10-20**.
 
 ## 1. Sức khoẻ
 
 | Thành phần                | Trạng thái                                                                 |
 | ------------------------- | -------------------------------------------------------------------------- |
-| Game Engine (TV1/TV2)     | IMPLEMENTED — core + advanced mechanics, có test riêng                    |
-| AI Solver (TV3/TV4)       | IMPLEMENTED — `solvers/` BFS/DFS/UCS/A* + `SearchResult`                  |
+| Game Engine (TV1/TV2)     | IMPLEMENTED — core + advanced mechanics trong `game/`; chưa có test suite trong checkout |
+| AI Solver (TV3/TV4)       | IMPLEMENTED — BFS/DFS/UCS/A* + `SearchResult`; timeout hủy hợp tác tại các checkpoint |
 | HTTP adapter              | IMPLEMENTED — `server.py` (FastAPI): `/levels`, `/levels/{name}`, `/transition`, `/solve` |
-| GUI (TV5)                 | EMPTY — `gui/*.py` là file 0 byte                                          |
-| Entrypoint                | EMPTY — `main.py` 0 byte                                                   |
-| Experiments               | EMPTY — `experiments/*.py` 0 byte, `results.csv` rỗng                      |
+| GUI (TV5)                 | INTEGRATED — `gui/index.html` dùng Three.js và gọi API để chuyển trạng thái, solve/replay |
+| Entrypoint                | `main.py` vẫn rỗng; chạy GUI/API bằng `python server.py`                   |
+| Experiments               | NOT IMPLEMENTED — `experiments/` chưa có benchmark chạy được               |
+| Automated checks          | NOT CONFIGURED — không có `tests/`, `pyproject.toml`, `uv.lock` hoặc CI workflow |
 
-- Toàn bộ test: **100 passed** (`uv run pytest -q`, ~5s).
-- `ruff check .` và `pyright` sạch (`pyright` chỉ include `game` + `tests`).
-- 10/10 `levels/level1-10.json` nạp + validate + khởi tạo state được.
+- Chưa chạy test hoặc khởi chạy server trong lượt cập nhật này.
+- A* mặc định dùng H2 split-aware; admissibility/consistency cần được đối chiếu với semantics cuối cùng trước khi công bố bảo đảm tối ưu.
+- Cost hiện tại là `stand_roll=1.5`, `lie_roll=1.0`, `switch_cube=0.1`; `bridge_cross_penalty=0.3` chưa được dùng. Đây là hành vi code hiện tại, chưa phải quyết định cost cuối cùng của nhóm.
 
 ## 2. Blocker / việc đang mở
 
 | Việc                                   | Blocker cho                          | Ghi chú                                             |
 | -------------------------------------- | ------------------------------------- | --------------------------------------------------- |
-| GUI (`gui/app.py`, `controller.py`, `renderer.py`) | `main.py` chưa có entrypoint | Contract đã có sẵn ở `docs/gui_api.md`              |
-| `main.py`                              | phụ thuộc GUI                          | Dự kiến khởi chạy `gui.app`                          |
-| `experiments/`                         | phụ thuộc GUI + solver output         | `benchmark.py`, `run_experiments.py`, `results.csv` |
-| `step_cost`                            | placeholder `1.0` (TEMPORARY)         | `docs/api.md` §6.2 — owner: team, consumer: TV4     |
+| H2 admissibility/consistency           | Chưa có xác nhận bằng kiểm tra đối chiếu | Không tuyên bố A* tối ưu đến khi xác nhận với cost và transition cuối |
+| Cost semantics                         | Cần thống nhất trong nhóm             | `docs/api.md` §6.2; `bridge_cross_penalty` hiện chưa áp dụng |
+| Automated validation                  | Checkout chưa có test suite/CI         | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu |
+| `experiments/`                         | Chưa có benchmark chạy được            | Hoàn thiện benchmark cold/warm và ghi lại metric solver |
+| `main.py`                              | Chưa phải entrypoint                   | Dùng `python server.py` để chạy GUI cùng API          |
 
 ## 3. Delete-zone
 
@@ -43,4 +45,4 @@
 
 - Thay đổi cấu trúc/ownership → sửa **Map** (`docs/index.md`) trong cùng commit.
 - Thay đổi blocker/threshold/milestone → sửa **Status** (file này).
-- Quyết định khó đảo/removal/incident → thêm một dòng vào **History** (`docs/engine.md`).
+- Thay đổi cần lưu lịch sử → thêm một dòng vào `docs/CHANGELOG.md`.
