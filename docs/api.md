@@ -1,7 +1,7 @@
 # Bloxorz Solver — API Contract & Architecture Specifications
 
 > **Target Audience:** TV1 (Core Engine), TV2 (Advanced Mechanics), TV3 & TV4 (Solvers), TV5 (GUI & Integration).
-> **Status:** Python Engine API implemented in `game/`. `API_CONTRACT.md` is the GUI/backend wire contract. `TEMPORARY` marks a confirmed placeholder decision; `CONFIRMED` marks an agreed behavior or representation.
+> **Status:** Python Engine API implemented in `game/`. `docs/gui_api.md` is the GUI/backend wire contract. `TEMPORARY` marks a confirmed placeholder decision; `CONFIRMED` marks an agreed behavior or representation.
 
 ---
 
@@ -9,7 +9,7 @@
 
 1. **Single Source of Truth:** The `Engine` is the **only** module that contains and enforces Bloxorz game rules.
 2. **Solver Isolation:** Solvers never inspect tiles, switches, or board details directly. They interact with the game solely via the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`).
-3. **GUI Purity:** The GUI never manipulates block coordinates or game state directly. Every visual state change and replay step must be driven by `engine.transition()`.
+3. **GUI Purity:** The GUI never decides game transitions. The browser sends actions through `server.py` over HTTP; the adapter calls `Engine.transition()` and returns the authoritative result for rendering.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
 5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A\*) return the identical `SearchResult` data structure.
 
@@ -116,13 +116,7 @@ class Engine:
     def step_cost(self, state: State, action: Action, next_state: State) -> float: ...
 ```
 
-### 4.1 Method Specifications
-
-#### `get_initial_state() -> State`
-
-- Returns the initial state of the stage.
-- Block orientation is `Orientation.STANDING`.
-- Anchor is at the board's designated start cell `S`.
+`transition` returns a `TransitionResult`, separating the game outcome from the HTTP envelope (encoding in `docs/gui_api.md` §3.3):
 
 ```python
 class TransitionStatus(str, Enum):
@@ -136,7 +130,18 @@ class TransitionResult:
     state: State | None
     is_goal: bool
     reason: str | None = None
+    fall_state: State | None = None  # rejected geometry for fall animation only
 ```
+
+When `status == FALL`, `state` remains `None`. `fall_state` carries the attempted geometry that caused the fall so the GUI can animate the block into the unsupported/trap cell. It is presentation data only and must not replace the current game state.
+
+### 4.1 Method Specifications
+
+#### `get_initial_state() -> State`
+
+- Returns the initial state of the stage.
+- Block orientation is `Orientation.STANDING`.
+- Anchor is at the board's designated start cell `S`.
 
 #### `legal_actions(state: State) -> list[Action]`
 
@@ -147,7 +152,7 @@ class TransitionResult:
 #### `transition(state: State, action: Action) -> TransitionResult`
 
 - **Pure function:** Never mutates `state` or internal board structures; has no side effects.
-- Returns `OK` with a successor `State`, `FALL` with `state=None` for unsupported movement, or `ILLEGAL` with `state=None` for an action invalid in the current state. Canonical reasons and HTTP encoding are specified in `API_CONTRACT.md` §3.3.
+- Returns `OK` with a successor `State`, `FALL` with `state=None` plus rejected `fall_state` geometry for unsupported movement, or `ILLEGAL` with `state=None` for an action invalid in the current state. Canonical reasons and HTTP encoding are specified in `docs/gui_api.md` §3.3.
 - Falling is not represented as an active state, and does not persist board damage.
 
 #### `is_goal(state: State) -> bool`
@@ -166,16 +171,17 @@ class TransitionResult:
 
 `Board` is a frozen dataclass. Its level data is immutable; the derived lookup maps are read-only.
 
-| Field | Type | Meaning |
-|---|---|---|
-| `rows`, `cols` | `int` | Dimensions derived from the character grid. |
-| `start`, `goal` | `Cell` | Coordinates of the unique `S` and `G`; the `S` cell is stored as `FLOOR` in `grid`. |
-| `grid` | `tuple[tuple[TileType, ...], ...]` | Parsed tile matrix. |
-| `bridges` | `tuple[Bridge, ...]` | Bridge metadata in input JSON order. |
-| `switches` | `tuple[Switch, ...]` | Switch metadata in input JSON order. |
-| `name` | `str` | Level name; defaults to `""`. |
-| `bridge_at` | read-only `Mapping[Cell, Bridge]` | Derived lookup from a bridge cell to its metadata. |
-| `switch_at` | read-only `Mapping[Cell, Switch]` | Derived lookup from a switch cell to its metadata. |
+| Field           | Type                               | Meaning                                                                                     |
+| --------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `rows`, `cols`  | `int`                              | Dimensions derived from the character grid.                                                 |
+| `start`, `goal` | `Cell`                             | Coordinates of the unique `S` and `G`; the `S` cell is stored as `FLOOR` in `grid`.         |
+| `grid`          | `tuple[tuple[TileType, ...], ...]` | Parsed tile matrix.                                                                         |
+| `grid_raw`      | `tuple[str, ...]`                  | Original JSON row strings (used by the HTTP adapter to re-emit `grid`).                     |
+| `bridges`       | `tuple[dict[str, Any], ...]`       | Raw bridge metadata records in input JSON order; deep-validated when the `Engine` is built. |
+| `switches`      | `tuple[dict[str, Any], ...]`       | Raw switch metadata records in input JSON order; deep-validated when the `Engine` is built. |
+| `name`          | `str`                              | Level name; defaults to `""`.                                                               |
+| `bridge_at`     | read-only `Mapping[Cell, Bridge]`  | Derived lookup from a bridge cell to its metadata (`Bridge`).                               |
+| `switch_at`     | read-only `Mapping[Cell, Switch]`  | Derived lookup from a switch cell to its metadata (`Switch`).                               |
 
 The metadata records are frozen dataclasses:
 
@@ -300,7 +306,10 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
       "cell": [1, 8],
       "type": "split",
       "targets": [],
-      "split_cells": [[4, 0], [6, 10]]
+      "split_cells": [
+        [4, 0],
+        [6, 10]
+      ]
     }
   ]
 }
@@ -340,9 +349,9 @@ The engine applies switch effects deterministically: it inspects the resulting b
 
 ### 6.7 Stream Dependency Summary
 
-| Stream                   | Can rely on now                                                                                | Must wait for                        |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
-| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics                            | —                                    |
-| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract                                       | Solver modules and level set         |
-| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                                             | Solver modules and final cost rule   |
-| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema                                     | Solver outputs and final cost values |
+| Stream                   | Can rely on now                                                       | Must wait for                        |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
+| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | —                                    |
+| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract              | Solver modules and level set         |
+| TV4 (UCS/A\*)            | Solver interface and `step_cost == 1.0` placeholder                   | Solver modules and final cost rule   |
+| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema           | Solver outputs and final cost values |

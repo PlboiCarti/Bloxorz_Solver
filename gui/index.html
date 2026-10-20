@@ -88,11 +88,11 @@
     .view-heading { display: none; }
     #stage { position: absolute; inset: 0; min-height: 0; overflow: hidden; background: linear-gradient(#6ddff0,#28c4df); }
     #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
-    .stage-label { z-index: 3; left: 50%; bottom: 21px; transform: translateX(-50%); width: max-content; max-width: 58vw; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff1a8; text-align: center; text-shadow: 0 2px 2px #294f4e, 1px 0 #294f4e, -1px 0 #294f4e; backdrop-filter: none; }
+    .stage-label { z-index: 3; left: 50%; bottom: clamp(70px, 11vh, 110px); transform: translateX(-50%); width: max-content; max-width: 58vw; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff1a8; text-align: center; text-shadow: 0 2px 2px #294f4e, 1px 0 #294f4e, -1px 0 #294f4e; backdrop-filter: none; }
     .stage-label strong { display: block; color: inherit; font-size: clamp(22px,3.5vw,36px); line-height: 1.05; letter-spacing: .015em; font-weight: 950; }
     .stage-label span { display: block; margin-top: 4px; color: #fff9db; font-size: 11px; font-weight: 700; }
     .tile-legend {
-      position: absolute; z-index: 3; top: 128px; left: 20px; display: flex;
+      position: absolute; z-index: 3; top: 48px; left: 20px; display: flex;
       flex-wrap: wrap; gap: 6px; max-width: min(440px, 48vw); padding: 8px 10px;
       border: 1px solid #fff4c7aa; border-radius: 12px; background: #fff0b9df;
       color: #5d4c24; box-shadow: 0 4px 14px #15526325; font-size: 10px;
@@ -119,6 +119,13 @@
     .button-row button { min-height: 30px; padding: 2px 4px; font-size: 8px; }
     .select-row { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 6px; color: #796334; font-size: 8px; font-weight: 800; }
     .select-row select { width: 100%; min-height: 27px; padding: 3px 5px; border: 1px solid #e7c95c; border-radius: 7px; background: #fff8d8; color: #5d4c24; font: inherit; font-size: 9px; }
+    .solver-panel { position: absolute; z-index: 4; left: 20px; bottom: 20px; width: 220px; pointer-events: none; }
+    .solver-panel h3 { margin: 0 0 4px; color: #796334; font-size: 9px; text-align: center; letter-spacing: .1em; }
+    .solver-table { width: 100%; border-collapse: collapse; color: #594a2b; font-size: 8px; text-align: left; }
+    .solver-table th { padding: 2px 3px; color: #806a38; font-size: 7px; letter-spacing: .04em; }
+    .solver-table td { padding: 2px 3px; border-top: 1px solid #e8d99d88; font-weight: 800; }
+    .solver-table td:last-child { text-align: right; }
+    .solver-status { display: inline-block; padding: 2px 5px; border-radius: 8px; background: #eee2b5; color: #806a38; white-space: nowrap; }
     .solver-metrics { margin-top: 6px; color: #5d4c24; font-size: 8px; line-height: 1.35; white-space: pre-line; }
     .solver-metrics[data-solved="true"] { color: #176b37; }
     .solver-metrics[data-solved="false"] { color: #a12f2f; }
@@ -140,9 +147,10 @@
       .game-controls { right: 10px; bottom: 11px; width: auto; gap: 6px; align-items: end; }
       .state-hud { display: none; }
       .input-hud { width: 126px; flex-basis: 126px; }
-      .stage-label { left: 12px; bottom: 20px; transform: none; max-width: calc(100vw - 150px); text-align: left; }
+      .solver-panel { left: 10px; bottom: 10px; width: 158px; padding: 8px; }
+      .stage-label { left: auto; right: 10px; bottom: clamp(100px, 18vh, 150px); transform: none; max-width: calc(100vw - 190px); text-align: right; }
       .stage-label span { max-width: 34vw; }
-      .tile-legend { top: 100px; left: 10px; gap: 4px; max-width: 205px; padding: 6px; font-size: 8px; }
+      .tile-legend { top: 42px; left: 10px; gap: 4px; max-width: 205px; padding: 6px; font-size: 8px; }
       .tile-legend .ic { width: 16px; height: 16px; }
     }
   </style>
@@ -179,6 +187,18 @@
           <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M7 7 L17 17 M17 7 L7 17" stroke="#e75d34" stroke-width="3" stroke-linecap="round"/></svg>Công tắc nặng</span>
           <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M10 7.5 A4.5 4.5 0 0 0 10 16.5 M14 7.5 A4.5 4.5 0 0 1 14 16.5" fill="none" stroke="#9160d9" stroke-width="2.4" stroke-linecap="round"/></svg>Công tắc tách</span>
         </div>
+        <section class="side-card solver-panel" aria-labelledby="solver-heading">
+          <h3 id="solver-heading">SOLVERS · TẠM KHÓA</h3>
+          <table class="solver-table" aria-label="Trạng thái các thuật toán tìm kiếm">
+            <thead><tr><th>THUẬT TOÁN</th><th>TRẠNG THÁI</th></tr></thead>
+            <tbody>
+              <tr><td>BFS</td><td><span class="solver-status">Chưa bật</span></td></tr>
+              <tr><td>DFS</td><td><span class="solver-status">Chưa bật</span></td></tr>
+              <tr><td>UCS</td><td><span class="solver-status">Chưa bật</span></td></tr>
+              <tr><td>A*</td><td><span class="solver-status">Chưa bật</span></td></tr>
+            </tbody>
+          </table>
+        </section>
         <div class="stage-label" aria-live="polite">
           <strong id="stage-prompt">SWIPE TO START</strong>
           <span id="status-message">Chạm vuốt để di chuyển · WASD hoặc phím mũi tên</span>
@@ -209,15 +229,13 @@
         <div class="button-row">
           <button id="new-game">NEW GAME</button>
         </div>
-        <label class="select-row" for="algorithm-select">THUẬT TOÁN
-          <select id="algorithm-select" disabled aria-label="Chọn thuật toán tìm kiếm">
+        <select id="algorithm-select" hidden disabled aria-label="Chọn thuật toán tìm kiếm">
             <option value="BFS">BFS</option>
             <option value="DFS">DFS</option>
             <option value="UCS">UCS</option>
             <option value="ASTAR">A*</option>
-          </select>
-        </label>
-        <div class="button-row"><button id="solve" class="primary">▶ SOLVE</button><button id="undo" disabled>UNDO</button></div>
+        </select>
+        <div class="button-row"><button id="solve" class="primary" disabled aria-label="Solver tạm thời bị vô hiệu hóa" title="Solver đang tạm thời bị vô hiệu hóa">▶ SOLVE</button><button id="undo" disabled>UNDO</button></div>
         <div id="solver-metrics" class="solver-metrics" aria-live="polite"></div>
         <div class="replay-controls" aria-label="Điều khiển phát lại lời giải">
           <button id="replay-first" disabled aria-label="Về đầu lời giải" title="Về đầu">⏮</button>
@@ -249,7 +267,7 @@
   let currentLevel = null;
   let boardState = null;
   let apiReady = false;
-  let solverAvailable = true;
+  let solverAvailable = false;
   let controllerMode = 'SEARCHING';
   let busy = true;
   let moveCount = 0;
@@ -468,16 +486,13 @@
     };
   }
 
-  function fromApiState(state, board) {
+  function fromApiState(state, board, allowOutOfBounds = false) {
     if (!state || typeof state !== 'object') throw new Error('API không trả về state hợp lệ.');
     if (typeof state.split_mode !== 'boolean') throw new Error('State.split_mode phải là boolean.');
     const split = Boolean(state.split_mode);
     const rawOrientation = String(state.orientation || '').toUpperCase();
     const o = API_ORIENTATIONS[rawOrientation];
     if (!o) throw new Error(`Hướng khối từ API không được hỗ trợ: ${state.orientation}`);
-    if (!Array.isArray(state.occupied_cells)) {
-      throw new Error('State cần occupied_cells theo API contract.');
-    }
     const anchor = state.block_position
       ? cellFromApi(state.block_position, 'block_position')
       : null;
@@ -486,11 +501,12 @@
       B: cellFromApi(state.cube2_position, 'cube2_position'),
     } : undefined;
     const inBounds = cell => cell.x >= 0 && cell.x < board.width && cell.z >= 0 && cell.z < board.height;
-    if ((split && (!inBounds(cubes.A) || !inBounds(cubes.B)))
-      || (!split && (!anchor || !inBounds(anchor)))) {
+    if (!anchor || (!allowOutOfBounds
+      && ((split && (!inBounds(cubes.A) || !inBounds(cubes.B)))
+        || (!split && !inBounds(anchor))))) {
       throw new Error('Tọa độ khối trong state nằm ngoài board.');
     }
-    if (split && (!anchor || !inBounds(anchor))) {
+    if (split && !allowOutOfBounds && !inBounds(anchor)) {
       throw new Error('State split cần block_position nằm trong board.');
     }
     if (split && cubes.A.x === cubes.B.x && cubes.A.z === cubes.B.z) {
@@ -523,22 +539,6 @@
     } else {
       throw new Error('State.bridge_states phải là mảng boolean theo API contract.');
     }
-    const occupiedCells = state.occupied_cells.map(cell => cellFromApi(cell, 'occupied_cells'));
-    if (occupiedCells.some(cell => !inBounds(cell))) {
-      throw new Error('occupied_cells chứa tọa độ ngoài board.');
-    }
-    const expectedCells = split
-      ? [cubes.A, cubes.B]
-      : [
-          anchor,
-          ...(o === 'X' ? [{ x: anchor.x + 1, z: anchor.z }] : []),
-          ...(o === 'Z' ? [{ x: anchor.x, z: anchor.z + 1 }] : []),
-        ];
-    if (occupiedCells.length !== expectedCells.length
-      || occupiedCells.some((cell, index) => cell.x !== expectedCells[index].x
-        || cell.z !== expectedCells[index].z)) {
-      throw new Error('occupied_cells không khớp vị trí/hướng trong state.');
-    }
     if (split && (anchor.x !== cubes[activeCube].x || anchor.z !== cubes[activeCube].z)) {
       throw new Error('block_position trong state split phải trỏ tới cube đang hoạt động.');
     }
@@ -548,7 +548,6 @@
       x: logicalAnchor.x,
       z: logicalAnchor.z,
       o: split ? 'S' : o,
-      occupied_cells: occupiedCells,
       cubes,
       active_cube: activeCube,
       bridges,
@@ -565,7 +564,6 @@
       orientation: split
         ? 'STANDING'
         : state.o === 'S' ? 'STANDING' : state.o === 'X' ? 'HORIZONTAL' : 'VERTICAL',
-      occupied_cells: state.occupied_cells.map(cell => [cell.z, cell.x]),
       bridge_states: boardState.bridgeIds.map(id => Boolean(state.bridges[id])),
       split_mode: split,
       cube1_position: split ? [state.cubes.A.z, state.cubes.A.x] : null,
@@ -634,9 +632,16 @@
       if (status !== 'ok' && (result.state !== null || result.isGoal)) {
         throw new Error(`TransitionResult.status=${status} phải có state=null và isGoal=false.`);
       }
+      if (status === 'fall' && (!result.fall_state || typeof result.fall_state !== 'object')) {
+        throw new Error('TransitionResult.status=fall cần fall_state để dựng animation vào ô bẫy.');
+      }
+      if (status !== 'fall' && result.fall_state !== null) {
+        throw new Error(`TransitionResult.status=${status} phải có fall_state=null.`);
+      }
       return {
         status,
         state: status === 'ok' ? fromApiState(result.state, boardState) : null,
+        fallState: status === 'fall' ? fromApiState(result.fall_state, boardState, true) : null,
         isGoal: result.isGoal,
         reason: result.reason || null,
       };
@@ -1138,7 +1143,6 @@
     mode: 'BLOCK',
     orientation: 'STANDING',
     bridges: {},
-    occupied_cells: [{ x: START_STATE.x, z: START_STATE.z }],
   };
 
   function loadBlockAsset() {
@@ -1249,9 +1253,9 @@
     if (o === 'Z') mesh.rotation.x = -Math.PI / 2;
   }
   function worldCenter(s) {
-    const cells = s.occupied_cells?.length ? s.occupied_cells : [{ x: s.x, z: s.z }];
-    const p = cells.reduce((center, cell) => center.add(cellCenter(cell.x, cell.z)), new THREE.Vector3())
-      .multiplyScalar(1 / cells.length);
+    const xOffset = s.o === 'X' ? 0.5 : 0;
+    const zOffset = s.o === 'Z' ? 0.5 : 0;
+    const p = cellCenter(s.x + xOffset, s.z + zOffset);
     if (s.o === 'S') p.y = BOARD_LIFT + 1;
     if (s.o !== 'S') p.y = BOARD_LIFT + 0.5;
     return p;
@@ -1348,7 +1352,7 @@
       'aria-label',
       controllerMode === 'REPLAYING' ? 'Tạm dừng phát lại' : 'Tiếp tục phát lại',
     );
-    document.getElementById('replay-speed').disabled = locked;
+    document.getElementById('replay-speed').disabled = locked || !solverAvailable;
     document.getElementById('replay-speed-value').textContent = `${(replayDelay / 1000).toFixed(1)}s`;
     document.getElementById('move-count').textContent = String(moveCount);
   }
@@ -1422,7 +1426,7 @@
     renderStatus('Đã khôi phục trạng thái trước đó.');
   }
 
-  function animateRoll(from, to, move) {
+  function animateRoll(from, to, move, commitVisualState = true) {
     // Roll around the leading edge pivot, following the pivot-edge approach
     // in RollingCat-3D's PlayerController.cs (MIT; adapted for Three.js).
     return new Promise(resolve => {
@@ -1460,7 +1464,7 @@
           scene.add(blockMesh);
           blockMesh.quaternion.copy(blockWorldQuaternion);
           blockMesh.position.copy(worldCenter(to));
-          visualState = cloneState(to);
+          if (commitVisualState) visualState = cloneState(to);
           resolve();
         }
       }
@@ -1494,7 +1498,36 @@
     });
   }
 
-  function animateFall(move, cubeIds = null) {
+  async function animateFall(from, move, fallState = null, cubeIds = null) {
+    if (fallState && from.mode === 'BLOCK' && fallState.mode === 'BLOCK' && blockMesh) {
+      await animateRoll(from, fallState, move, false);
+    } else if (fallState && from.mode === 'SPLIT' && fallState.mode === 'SPLIT') {
+      const movingIds = cubeIds || [from.active_cube];
+      for (const id of movingIds) {
+        const mesh = splitMeshes[id];
+        const cell = fallState.cubes[id];
+        if (!mesh || !cell) continue;
+        const start = mesh.position.clone();
+        const target = new THREE.Vector3(cellToWorldX(cell.x), BOARD_LIFT + 0.5, cellToWorldZ(cell.z));
+        const startTime = performance.now();
+        await new Promise(resolve => {
+          function frame(now) {
+            const t = Math.min(1, (now - startTime) / 180);
+            const eased = t * t * (3 - 2 * t);
+            mesh.position.lerpVectors(start, target, eased);
+            mesh.position.y += Math.sin(eased * Math.PI) * 0.12;
+            if (t < 1) requestAnimationFrame(frame);
+            else resolve();
+          }
+          requestAnimationFrame(frame);
+        });
+      }
+    } else if (fallState && fallState.mode !== from.mode) {
+      const logicalState = visualState;
+      makeBlock(fallState);
+      visualState = logicalState;
+    }
+
     const fallingMeshes = blockMesh
       ? [blockMesh]
       : cubeIds
@@ -1535,8 +1568,9 @@
         const fallEase = fallProgress * fallProgress;
         fallingMeshes.forEach((mesh, index) => {
           const start = startPoses[index];
-          mesh.position.x = start.x + direction.x * (0.72 * rollEase + 0.2 * fallEase);
-          mesh.position.z = start.z + direction.z * (0.72 * rollEase + 0.2 * fallEase);
+          const approach = fallState ? 0 : 0.72 * rollEase + 0.2 * fallEase;
+          mesh.position.x = start.x + direction.x * approach;
+          mesh.position.z = start.z + direction.z * approach;
           mesh.position.y = THREE.MathUtils.lerp(
             start.y - 0.06 * rollEase,
             WATER_LEVEL - 1.25,
@@ -1608,7 +1642,7 @@
         renderStatus(`Khối bị rơi${response.reason ? `: ${response.reason}` : '.'} Có thể đặt lại hoặc hoàn tác.`);
       }
       const fallingCubes = before.mode === 'SPLIT' ? [before.active_cube] : null;
-      await animateFall(move, fallingCubes);
+      await animateFall(before, move, response.fallState, fallingCubes);
       busy = false;
       updateControls();
       return !fromSolver;
@@ -1772,7 +1806,7 @@
   }
 
   async function autoSolve() {
-    if (busy || !apiReady) return;
+    if (busy || !apiReady || !solverAvailable) return;
     busy = true;
     controllerMode = 'SEARCHING';
     stopReplayTimer();

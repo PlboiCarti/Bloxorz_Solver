@@ -12,16 +12,16 @@
    - Every movement, switch trigger, bridge toggle, split/merge, or win/loss condition **must** be evaluated exclusively through the backend endpoints (§2.1), which call `Engine.transition()` / `Engine.is_goal()`.
    - GUI-side geometry is allowed only to interpolate animations between states returned by the engine; it must never decide legality, landing cells, or victory.
 2. **Solver Decoupling:**
-   - The GUI does not implement search algorithms. It triggers solvers via `POST /solve` and visualizes the returned `SearchResult`.
+   - The GUI does not implement search algorithms. The `/solve` route and Python solvers exist, but the current GUI keeps solver and replay controls disabled; their UI integration is outside the current manual-play flow.
 3. **Non-blocking Search Execution:**
    - `POST /solve` is a synchronous HTTP request with a hard server-side timeout; the backend executes the search off the async event loop (worker thread) (§4.3). The browser `fetch` is asynchronous, so the UI render thread is never blocked.
 4. **Deterministic Replay:**
-   - Solver paths (`list[Action]`) are animated step-by-step through sequential `POST /transition` calls, keeping a history stack for step-forward and step-backward (undo) navigation (§7).
+   - When solver/replay UI is re-enabled, a returned path (`list[Action]`) is to be played step-by-step through sequential `POST /transition` calls, with history for step-forward and step-backward navigation (§7). This flow is currently inactive in the GUI.
 5. **Stateless Backend, Client-owned Session:**
    - `/transition` and `/solve` keep no server-side session or hidden state: every request carries the level name and the full current state.
    - The GUI owns the only game session: `currentState`, snapshot `history`, `initialState`, replay index (§7). There is no server undo/reset endpoint; `GET /levels/{name}` always returns a fresh `initial_state`.
 6. **No Transition Events:**
-   - The backend does not send an animation event list. The GUI derives everything from `(previous state, action, TransitionResult)`; every logical change must be visible in the result state (§3.3).
+   - The backend does not send an animation event list. The GUI derives movement animation from `(previous state, action, TransitionResult)`. A `fall_state` may provide rejected geometry for the fall animation only; it is never committed as game state (§3.3).
 
 ---
 
@@ -44,7 +44,7 @@ levels/                 # shared level JSON files
 
 The tree above is the target modular layout. The current GUI is consolidated in `gui/index.html` with inline JavaScript; it is owned by TV5 and uses Three.js. Algorithms and the engine remain in Python. The two sides communicate through the HTTP endpoints in §2.1, and the current server serves the GUI and `/assets/*` from the same origin.
 
-**Repository implementation note (2026-10-18):** `server.py` implements the HTTP adapter with FastAPI and serves `gui/index.html` at `/`, plus files under `assets/` at `/assets/*`. It serializes board/state data and transition results using this wire contract. `game/engine.py` implements the class-based `Engine` API; `/solve` remains unavailable until solver implementations are integrated.
+**Repository implementation note (2026-10-20):** `server.py` implements the FastAPI adapter, including `/transition` and `/solve`, and serves `gui/index.html` plus `/assets/*`. It serializes board/state data and transition results using this wire contract. BFS, DFS, UCS, and A* are registered in the server, but the current GUI disables solver and replay controls; this task's active GUI flow is manual play through `/transition`.
 
 ### 2.1 Backend HTTP API
 
@@ -63,6 +63,7 @@ Rules:
 
 - `{name}` is a level file name **including** the `.json` extension, exactly as returned by `GET /levels`. Names never contain path separators or `..`; an unknown or malformed name is `404`.
 - `GET /levels` lists only files that `load_board` accepts, so every listed name is guaranteed loadable (invalid/placeholder files are skipped by the server).
+- `GET /levels` sorts names naturally, so numbered levels appear as `level1`, `level2`, …, `level10`.
 - `GET /levels/{name}` returns the parsed board plus a **fresh** `initial_state`. The GUI uses it both to load a level and to reset it; no separate reset endpoint exists.
 - `/transition` and `/solve` are stateless: level, board and state are validated from each request; nothing is cached between requests.
 - The backend validates `level`, `state` and `action`; failures follow §2.2.
@@ -92,7 +93,6 @@ Every non-2xx response body is JSON; the GUI can parse every body unconditionall
 | `404` | `LEVEL_NOT_FOUND`, `NOT_FOUND` | Unknown level or route |
 | `422` | `INVALID_STATE` | Well-formed JSON but not a valid state for the given board (e.g. anchor outside the grid) |
 | `500` | `INTERNAL_ERROR` | Unexpected server error; never leaks stack traces or secrets |
-| `501` | `SOLVER_NOT_AVAILABLE` | Algorithm not implemented yet (TV3/TV4 pending) |
 | `504` | `SOLVER_TIMEOUT` | Search exceeded the time budget (§4.3) |
 
 - `fall` and `illegal` move outcomes are **not** HTTP errors (HTTP 200, §3.3).
@@ -129,7 +129,6 @@ initial_state: State = engine.get_initial_state()
   "initial_state": {
     "block_position": [1, 3],
     "orientation": "STANDING",
-    "occupied_cells": [[1, 3]],
     "bridge_states": [],
     "split_mode": false,
     "cube1_position": null,
@@ -218,13 +217,12 @@ Validation rules (loader):
 
 ### 3.2 State Data & Geometry Inspection
 
-The GUI renders from the state JSON returned by `/transition` and `GET /levels/{name}`. The client never computes `occupied_cells` itself.
+The GUI renders from the state JSON returned by `/transition` and `GET /levels/{name}`. `occupied_cells` is an internal Python geometry helper and is not part of the HTTP state schema. The GUI places the block from `block_position` and `orientation`, and places split cubes from their individual positions.
 
 | State field | Type | GUI usage |
 | :--- | :--- | :--- |
 | `block_position` | `[row, col]` | Anchor = top-left occupied cell; in split mode = the active cube's cell |
 | `orientation` | `"STANDING" \| "HORIZONTAL" \| "VERTICAL"` | `HORIZONTAL` = along a row, `VERTICAL` = along a column; in split mode always `STANDING` |
-| `occupied_cells` | `[[row, col], ...]` | Cells covered by the block (split mode: cube 1 cell, then cube 2 cell), derived by the backend |
 | `bridge_states` | `[bool, ...]` | Bridge open (`true`) / closed (`false`); index `i` ↔ `board.bridges[i].id` |
 | `split_mode` | `bool` | Block is split into two 1×1×1 cubes |
 | `cube1_position` / `cube2_position` | `[row, col] \| null` | Cube positions when `split_mode == true` |
@@ -236,7 +234,6 @@ The GUI renders from the state JSON returned by `/transition` and `GET /levels/{
 {
   "block_position": [3, 4],
   "orientation": "STANDING",
-  "occupied_cells": [[3, 4]],
   "bridge_states": [],
   "split_mode": false,
   "cube1_position": null,
@@ -247,11 +244,11 @@ The GUI renders from the state JSON returned by `/transition` and `GET /levels/{
 
 Semantics and guarantees:
 
-- `State.to_dict()` produces every state field except `occupied_cells`; the backend adds it using `state.occupied_cells()`. Every `/transition` and `/solve` request must include all eight fields shown in the JSON shape, including `occupied_cells` and explicit `null` values for unused cube fields. The server validates `occupied_cells` as an array of integer `[row, col]` pairs and requires it to exactly match the cells derived from the other state fields, in the canonical order below. A state returned by the server can therefore be sent back unchanged. Unknown extra state keys are ignored.
-- `occupied_cells` order is stable: `STANDING` → `[(r,c)]`; `HORIZONTAL` → `[(r,c),(r,c+1)]`; `VERTICAL` → `[(r,c),(r+1,c)]`. This makes state comparison and tests deterministic.
+- The HTTP state uses seven fields: `block_position`, `orientation`, `bridge_states`, `split_mode`, `cube1_position`, `cube2_position`, and `active_cube`. Unused cube fields must be explicit `null` values. The server derives occupied cells from the parsed Python `State` and validates that the derived cells are inside the board. Unknown extra request fields are ignored.
+- `State.occupied_cells()` remains an internal Engine helper. Its canonical order is `STANDING` → `[(r,c)]`; `HORIZONTAL` → `[(r,c),(r,c+1)]`; `VERTICAL` → `[(r,c),(r+1,c)]`; split states return cube 1 then cube 2. It is used by Engine rules and backend validation, not sent over HTTP or handled by the GUI.
 - Tuples serialize as JSON arrays `[row, col]`, never as strings.
-- `split_mode == false`: `cube1_position`, `cube2_position` and `active_cube` are `null`; `block_position`/`orientation` describe the whole block; `occupied_cells` follows the stable order above.
-- `split_mode == true` (CONFIRMED): `occupied_cells` is `[cube1_position, cube2_position]` (cube 1 first); `block_position` mirrors the active cube's cell and `orientation` is `STANDING`; `active_cube` is `1` or `2`.
+- `split_mode == false`: `cube1_position`, `cube2_position` and `active_cube` are `null`; `block_position`/`orientation` describe the whole block.
+- `split_mode == true` (CONFIRMED): `block_position` mirrors the active cube's cell and `orientation` is `STANDING`; `active_cube` is `1` or `2`.
 - **Merge (CONFIRMED):** after a cube move, if the two cubes occupy orthogonally adjacent cells they merge into the standard block: `HORIZONTAL` when they share a row, `VERTICAL` when they share a column, anchor = the top-left of the two cells, `split_mode = false`, cube fields `null`.
 - **Goal (CONFIRMED):** a split state can never win; the cubes must merge and the block must stand on `G` (`is_goal` requires `not split_mode`).
 - `bridge_states` CONFIRMED representation: exactly one entry per bridge in `board.bridges`, in the same order, initialized from `initial`, including bridges that have not changed state (`[]` when the level has no bridges). `State.to_dict/from_dict`, `docs/api.md` and this section change together if it ever changes.
@@ -278,9 +275,10 @@ class TransitionResult:
     state: State | None   # the resulting state; set only when status == OK
     is_goal: bool         # engine.is_goal(state) when status == OK, else False
     reason: str | None = None
+    fall_state: State | None = None  # rejected geometry for fall animation only
 ```
 
-HTTP JSON encoding: `status` (lowercase), `state` (State JSON or `null`), `isGoal` (camelCase), `reason`. The backend serializes the `TransitionResult` returned by `engine.transition()` into this envelope.
+HTTP JSON encoding: `status` (lowercase), `state` (State JSON or `null`), `fall_state` (attempted State JSON or `null`), `isGoal` (camelCase), `reason`. On `fall`, `state` stays `null`; `fall_state` is rejected target geometry for animation only and must never update the GUI's logical state. On `ok` and `illegal`, `fall_state` is `null`.
 
 `reason` values (lowercase, fixed):
 
@@ -306,13 +304,13 @@ Precedence when several apply: `off_board` → `void` → `bridge_closed` → `f
   "state": {
     "block_position": [1, 4],
     "orientation": "HORIZONTAL",
-    "occupied_cells": [[1, 4], [1, 5]],
     "bridge_states": [],
     "split_mode": false,
     "cube1_position": null,
     "cube2_position": null,
     "active_cube": null
   },
+  "fall_state": null,
   "isGoal": false,
   "reason": null
 }
@@ -326,6 +324,15 @@ Precedence when several apply: `off_board` → `void` → `bridge_closed` → `f
 {
   "status": "fall",
   "state": null,
+  "fall_state": {
+    "block_position": [1, 6],
+    "orientation": "STANDING",
+    "bridge_states": [],
+    "split_mode": false,
+    "cube1_position": null,
+    "cube2_position": null,
+    "active_cube": null
+  },
   "isGoal": false,
   "reason": "void"
 }
@@ -339,6 +346,7 @@ Precedence when several apply: `off_board` → `void` → `bridge_closed` → `f
 {
   "status": "illegal",
   "state": null,
+  "fall_state": null,
   "isGoal": false,
   "reason": "switch_cube_not_split"
 }
@@ -347,7 +355,7 @@ Precedence when several apply: `off_board` → `void` → `bridge_closed` → `f
 #### User Action Processing
 
 1. `status == "ok"` → push the current state to `history`; `currentState = result.state`; animate the roll; if `result.isGoal` → enter `WON`.
-2. `status == "fall"` → do **not** change `currentState` or `history` (the engine's logical state is unchanged and no board damage persists); play fall feedback; enter `LOST` (or show a restart/undo prompt). The GUI derives the visual fall feedback from `action` + `currentState` (e.g. a bridge closing under the block = drop in place) — animation only, never rule logic.
+2. `status == "fall"` → do **not** change `currentState` or `history`; animate toward `fall_state` if supplied, then drop through that unsupported cell; enter `LOST`. `fall_state` is never committed and the GUI does not infer the failed destination from game rules.
 3. `status == "illegal"` → do not animate movement/fall; play a short "blocked" feedback (shake or flash); keep `currentState`.
 
 Additional rules:
@@ -357,7 +365,7 @@ Additional rules:
 - Undo and restart are client-side and valid in every mode, including after a `fall` and after `WON` (§7).
 - **Split switch (CONFIRMED):** when a non-split `STANDING` block lands exactly on a `P` cell, the block is teleported and split: cube 1 → `split_cells[0]`, cube 2 → `split_cells[1]`, `active_cube = 1`, `split_mode = true`. Both destination cells must be supported under the current bridge states; otherwise the result is a `fall` with the destination's reason.
 - **`SWITCH_CUBE` (CONFIRMED):** legal only when `split_mode == true`; it flips `active_cube` (1 ↔ 2) and updates `block_position` to the newly active cube's cell. Neither cube moves. It counts as one step in `history`, `SearchResult.path`, `solution_length`, and `step_cost`.
-- **Transition events: not used** (§1.6). Everything the GUI needs is `(previous state, action, TransitionResult)`.
+- **Transition events: not used** (§1.6). The optional `fall_state` is rejected geometry for presentation, not a game-state event.
 
 #### Transition Pipeline — CONFIRMED (order matters)
 
@@ -451,11 +459,11 @@ Rules:
 - All metrics are finite JSON numbers — never `NaN`, `Infinity`, or `null`; an unavailable metric is `0`.
 - Solving starts from the `state` sent in the request (usually the current GUI state).
 
-### 4.3 `POST /solve` — Non-blocking & Timeouts (`PENDING implementation`)
+### 4.3 `POST /solve` — Non-blocking & Timeouts
 
 - The endpoint is **synchronous with a hard timeout**: it returns `SearchResult` when the search finishes, or `504 SOLVER_TIMEOUT` when the budget `SOLVE_TIMEOUT_SECONDS` (default `10`, documented constant) is exceeded.
 - The backend runs the solver in a worker thread so the async event loop stays responsive; the GUI `fetch` is asynchronous and the UI thread stays free (spinner + `SEARCHING` mode).
-- Unknown algorithm → `400 UNKNOWN_ALGORITHM`; an algorithm whose solver module has not landed yet (TV3/TV4) → `501 SOLVER_NOT_AVAILABLE`. The GUI disables such buttons when `/solve` reports 501.
+- Unknown algorithm → `400 UNKNOWN_ALGORITHM`. The current server registers BFS, DFS, UCS, and ASTAR. The GUI does not call this route while solver controls are disabled.
 - The GUI drops stale responses (user restarted or switched level meanwhile) using a request-id.
 
 ### 4.4 Metrics Display Panel
@@ -561,9 +569,8 @@ export class UI {
 
 - **Stage Selector:** Dropdown listing available levels from `GET /levels`.
 - **Game Controls:** `New Game`, `Restart Level`, `Undo` (exact semantics in §7.1).
-- **Solver Buttons:** `Solve BFS`, `Solve DFS`, `Solve UCS`, `Solve A*` (disabled if `/solve` returns `501`).
-- **Replay Bar:** `First`, `Step Back`, `Play / Pause`, `Step Forward`, `Last`.
-- **Speed Slider:** Adjust playback delay (e.g. `0.1s` to `1.0s` per step).
+- **Solver Buttons:** `Solve BFS`, `Solve DFS`, `Solve UCS`, `Solve A*`; temporarily disabled in the current GUI.
+- **Replay Bar and Speed Slider:** present in the UI but unavailable while solver integration is disabled.
 
 ---
 
@@ -618,10 +625,10 @@ Contract smoke tests (each test states the request and expected response; some n
 
 1. `GET /levels` returns a non-empty list; every listed name loads through `GET /levels/{name}`.
 2. Board object: `rows`/`cols` match `grid`, `start`/`goal` are valid, exactly one `S` and one `G`; all chars are in the §3.1 table.
-3. `initial_state` conforms to §3.2 (fields, `occupied_cells`, null cube fields outside split mode).
-4. Transition `ok` updates position, orientation, `occupied_cells`, and `bridge_states`.
+3. `initial_state` conforms to §3.2 (seven state fields and null cube fields outside split mode).
+4. Transition `ok` updates position, orientation, and `bridge_states`.
 5. Transition `illegal` keeps `state: null` and the client state unchanged; an illegal action is never mistaken for a fall.
-6. Transition `fall` returns `state: null` with the correct `reason`; GUI enters `LOST`; `history`/`currentState` unchanged.
+6. Transition `fall` returns `state: null`, the correct `reason`, and rejected geometry in `fall_state`; GUI animates into the trap then enters `LOST`; `history`/`currentState` unchanged.
 7. Advanced tiles (TV2, implemented): `P` teleport/split, `SWITCH_CUBE`, cube movement/merge, soft/heavy activation rules, closed-bridge fall (`bridge_closed`), fragile-standing fall (`fragile_standing`) — all visible in the result state.
 8. `PENDING (TV3/TV4)`: each announced solver returns a schema-conform `SearchResult`; replaying the returned path ends `isGoal: true` at the goal.
 9. Error contract (§2.2): no solution, unknown algorithm, solver not available, malformed request, unknown level, timeout — every body is JSON with `error.code`.
@@ -634,10 +641,10 @@ Contract smoke tests (each test states the request and expected response; some n
 *(default, to be confirmed with team)*
 
 - **World Mapping:** cell `(row, col)` → world `x = col`, `z = row`; `y` is up.
-- **Block Dimensions & Placement:** standing block sits on its tile; lying block spans two tiles. Render from `occupied_cells`; never place the block from rules computed in JS.
+- **Block Dimensions & Placement:** standing block sits on its tile; lying block spans two tiles. Render from `block_position` and `orientation` (or individual split-cube positions); never compute a game transition in JS.
 - **Camera Viewport:** Camera frames the board using `board.rows` and `board.cols`.
 - **Animation Speed:** Default roll animation duration: 0.3 s per move (configurable). Fall animation: ~0.5 s.
-- **Fall animation:** interpolate from `currentState` + `action` (animation only; the server already decided the `fall`).
+- **Fall animation:** animate to rejected `fall_state` geometry and drop through the unsupported cell (presentation only; the server already decided the `fall`).
 
 ---
 
@@ -648,14 +655,16 @@ Contract smoke tests (each test states the request and expected response; some n
 | `TransitionResult` as the Python Engine return type | TV1/TV2 | Implemented in `game/`; HTTP adapter emits the contract result |
 | Bridge/switch metadata schema; `bridge_states` representation; split-mode state semantics | TV2 | Implemented by `game/board.py`, `game/engine.py`, and the HTTP adapter |
 | Cost function for UCS/A\* (`step_cost`) | team | TEMPORARY `1.0` (`docs/api.md` §6.2) |
-| `server.py` FastAPI backend (endpoints, worker thread, timeout) | TV1/TV2 | FastAPI endpoints are implemented; solver worker execution and timeout remain pending until solvers are integrated |
-| BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Pending; `/solve` returns `501` until then |
+| `server.py` FastAPI backend (endpoints, worker thread, timeout) | TV1/TV2 | `/transition` and `/solve` routes, worker execution, and timeout are implemented |
+| BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Present and registered; cost/heuristic semantics still require team confirmation before relying on UCS/A* results |
+| Solver/replay GUI controls | TV5 | Temporarily disabled; current GUI integration scope is manual play |
 | Static serving vs CORS decision | TV5/lead | Same-origin static serving implemented; cross-origin deployment needs explicit CORS configuration |
 
 ---
 
 ## Changelog
 
+- v6 (2026-10-20): natural level ordering; added visual-only `fall_state` so the GUI drops into the rejected trap cell without committing it; recorded that solver/replay UI is disabled.
 - v5 (2026-10-17): records the running `gui/index.html` + standard-library server layout, implemented HTTP wire serialization/validation, same-origin serving, and the remaining internal Engine/FastAPI/solver work.
 - v4 (2026-10-17): TV2 semantics finalized, no TV2 assumptions left. Added: bridge/switch metadata schema + loader validation + switch activation/bridge effect rules + fragile support (§3.1); split-mode state/merge/goal rules (§3.2); transition pipeline + new reasons `bridge_closed`/`cube_collision` + split-switch/`SWITCH_CUBE` rules (§3.3); A\* split heuristic fixed at `h = 0` (§3.4). Updated Space binding, smoke test 7 and open items.
 - v3 (2026-10-17): Incorporates TV5 review feedback. Decided: `Engine.transition()` returns `TransitionResult` (implementation pending); `POST /solve` is synchronous with a hard timeout (no job API); `bridge_states` stays an ordered array pending TV2. Added: official endpoint/state-lifecycle rules (§2.1), HTTP error contract (§2.2), full board/tile/bridge/switch schema (§3.1), state JSON semantics (§3.2), `ok`/`fall`/`illegal` examples and reason table (§3.3), solve timeout/501 rules (§4.3), history/undo rules + New Game/Restart semantics (§7), split-mode fall note (§3.3), expanded smoke tests (§8), open items (§10).
