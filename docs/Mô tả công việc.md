@@ -454,6 +454,16 @@ next_state = engine.transition(
 )
 ```
 
+Riêng A* có thể sử dụng thêm API read-only:
+
+```python
+context = engine.get_heuristic_context()
+```
+
+Context này chỉ cung cấp topology tĩnh đã được Engine relaxed hóa và cost
+configuration cho việc xây dựng H0/H1/H2. Solver không được đọc trực tiếp
+`Board`, `TileType` hoặc metadata switch để tự thực thi luật game.
+
 ---
 
 # 6. ĐẦU RA CỦA CÔNG VIỆC 2

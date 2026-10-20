@@ -5,8 +5,10 @@ from enum import Enum
 
 from game import split_block
 from game.actions import Action, Orientation
-from game.board import Board
+from game.board import Board, TileType
 from game.cost_config import DEFAULT_COST, CostConfig
+from game.geometry import ROLL_TABLE, roll_geometry
+from game.heuristic_context import HeuristicContext
 from game.state import Cell, State
 from game.switches import SwitchType, apply_targets, build_mechanics, is_triggered
 from game.tiles import support_failure
@@ -46,24 +48,9 @@ _ACTION_ORDER: tuple[Action, ...] = (
     Action.SWITCH_CUBE,
 )
 
-# Bảng chuyển đổi trạng thái lăn khối hộp: (Orientation, Action) -> (anchor_delta, new_orientation)
-_ROLL_TABLE: dict[tuple[Orientation, Action], tuple[tuple[int, int], Orientation]] = {
-    # Khối đang STANDING:
-    (Orientation.STANDING, Action.UP): ((-2, 0), Orientation.VERTICAL),
-    (Orientation.STANDING, Action.DOWN): ((1, 0), Orientation.VERTICAL),
-    (Orientation.STANDING, Action.LEFT): ((0, -2), Orientation.HORIZONTAL),
-    (Orientation.STANDING, Action.RIGHT): ((0, 1), Orientation.HORIZONTAL),
-    # Khối đang HORIZONTAL (chiếm (r, c) và (r, c+1)):
-    (Orientation.HORIZONTAL, Action.LEFT): ((0, -1), Orientation.STANDING),
-    (Orientation.HORIZONTAL, Action.RIGHT): ((0, 2), Orientation.STANDING),
-    (Orientation.HORIZONTAL, Action.UP): ((-1, 0), Orientation.HORIZONTAL),
-    (Orientation.HORIZONTAL, Action.DOWN): ((1, 0), Orientation.HORIZONTAL),
-    # Khối đang VERTICAL (chiếm (r, c) và (r+1, c)):
-    (Orientation.VERTICAL, Action.UP): ((-1, 0), Orientation.STANDING),
-    (Orientation.VERTICAL, Action.DOWN): ((2, 0), Orientation.STANDING),
-    (Orientation.VERTICAL, Action.LEFT): ((0, -1), Orientation.VERTICAL),
-    (Orientation.VERTICAL, Action.RIGHT): ((0, 1), Orientation.VERTICAL),
-}
+# Giữ alias private để các module/test cũ không bị vỡ, nhưng source of truth
+# cho rolling geometry hiện nằm ở game.geometry.
+_ROLL_TABLE = ROLL_TABLE
 
 
 class Engine:
@@ -95,6 +82,32 @@ class Engine:
             cube1_position=None,
             cube2_position=None,
             active_cube=None,
+        )
+
+    def get_heuristic_context(self) -> HeuristicContext:
+        """Trả về snapshot read-only cho heuristic của solver.
+
+        Context dùng relaxed support: mọi ô khác VOID đều được xem là có thể
+        nâng đỡ block, kể cả fragile và bridge đang đóng. Solver không cần
+        đọc trực tiếp ``board``, ``mechanics`` hay ``TileType``.
+        """
+        support_cells = frozenset(
+            (row, col)
+            for row in range(self.board.rows)
+            for col in range(self.board.cols)
+            if self.board.grid[row][col] is not TileType.VOID
+        )
+        split_switch_cells = frozenset(
+            switch.cell
+            for switch in self.mechanics.switches
+            if switch.type is SwitchType.SPLIT
+        )
+        return HeuristicContext(
+            support_cells=support_cells,
+            goal=self.board.goal,
+            split_switch_cells=split_switch_cells,
+            stand_roll=self._cost.stand_roll,
+            lie_roll=self._cost.lie_roll,
         )
 
     def legal_actions(self, state: State) -> list[Action]:
@@ -195,13 +208,7 @@ class Engine:
 
     def _roll(self, state: State, action: Action) -> tuple[Cell, Orientation] | None:
         """Áp dụng bảng chuyển đổi (Section 3.3). Không kiểm tra nền."""
-        lookup = _ROLL_TABLE.get((state.orientation, action))
-        if lookup is None:
-            return None
-        delta, new_orientation = lookup
-        r, c = state.block_position
-        new_anchor: Cell = (r + delta[0], c + delta[1])
-        return new_anchor, new_orientation
+        return roll_geometry(state.block_position, state.orientation, action)
 
     def _support_failure(self, state: State, cells: tuple[Cell, ...]) -> str | None:
         """Trả về lý do rơi của các ô `cells` trong ngữ cảnh `state`, hoặc None.
