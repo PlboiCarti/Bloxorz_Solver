@@ -1,10 +1,13 @@
-"""Cost-aware orientation-relaxed pattern database (H2).
+"""H2: cost-aware relaxed pattern database cho Bloxorz.
 
-H2 giữ rolling geometry, orientation và static VOID topology. Nó relax
-fragile/bridge/switch effects. Split switch được biểu diễn bằng pseudo-goal:
-đi tới một pose STANDING trên split switch được xem là còn cost bằng 0.
-Sau khi concrete state đã split, heuristic trả 0; đây là bản split-safe
-admissible, chưa phải full split-pair abstraction.
+H2 giữ rolling geometry, orientation và static VOID topology, nhưng relax
+fragile/bridge/switch effects. Với ``split_aware=True``, abstract graph còn
+giữ vị trí hai cube sau split và các bước di chuyển của từng cube. Vì vậy
+heuristic không phải trả về 0 ngay khi concrete state đã split.
+
+Đồ thị được tính một lần bằng reverse Dijkstra. Khi ``split_aware=False``,
+module vẫn cung cấp baseline split-safe cũ: các split switch là pseudo-goal và
+mọi concrete split state có heuristic bằng 0.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ from __future__ import annotations
 import heapq
 import itertools
 import math
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import lru_cache
 from time import perf_counter
@@ -20,7 +23,7 @@ from time import perf_counter
 from game.actions import Action, Orientation
 from game.geometry import pose_cells, roll_geometry
 from game.heuristic_context import HeuristicContext
-from game.state import State
+from game.state import Cell, State
 
 _ROLL_ACTIONS: tuple[Action, ...] = (
     Action.UP,
@@ -33,32 +36,57 @@ _ORIENTATIONS: tuple[Orientation, ...] = (
     Orientation.HORIZONTAL,
     Orientation.VERTICAL,
 )
+_SPLIT_DELTAS: tuple[tuple[int, int], ...] = (
+    (-1, 0),
+    (1, 0),
+    (0, -1),
+    (0, 1),
+)
 
 
 @dataclass(frozen=True, slots=True)
 class AbstractPose:
     """Một trạng thái block intact trong abstract graph."""
 
-    position: tuple[int, int]
+    position: Cell
     orientation: Orientation
+
+
+@dataclass(frozen=True, slots=True)
+class AbstractSplitPair:
+    """Hai cube split, được lưu theo thứ tự canonical để tránh trùng state."""
+
+    first: Cell
+    second: Cell
+
+
+AbstractState = AbstractPose | AbstractSplitPair
 
 
 @dataclass(frozen=True, slots=True)
 class H2Heuristic:
     """Bảng khoảng cách precompute và metadata đo preprocessing."""
 
-    distances: dict[AbstractPose, float]
+    distances: dict[AbstractState, float]
     preprocessing_seconds: float
     abstract_state_count: int
     abstract_edge_count: int
+    split_aware: bool = False
 
     def __call__(self, state: State) -> float:
-        """Tra H2 cho concrete state; split state dùng lower bound bằng zero."""
+        """Tra H2 cho concrete state."""
         if state.split_mode:
-            return 0.0
-
-        pose = AbstractPose(state.block_position, state.orientation)
-        value = self.distances.get(pose)
+            if not self.split_aware:
+                return 0.0
+            if state.cube1_position is None or state.cube2_position is None:
+                return 0.0
+            split_pair = _canonical_pair(state.cube1_position, state.cube2_position)
+            if split_pair is None:
+                return 0.0
+            value = self.distances.get(split_pair)
+        else:
+            pose = AbstractPose(state.block_position, state.orientation)
+            value = self.distances.get(pose)
 
         # Một legal concrete state phải map được vào relaxed graph. Fallback
         # về 0 an toàn hơn infinity nếu builder/context có lỗi chưa phát hiện.
@@ -66,7 +94,10 @@ class H2Heuristic:
 
 
 def _valid_pose(pose: AbstractPose, context: HeuristicContext) -> bool:
-    return all(cell in context.support_cells for cell in pose_cells(pose.position, pose.orientation))
+    return all(
+        cell in context.support_cells
+        for cell in pose_cells(pose.position, pose.orientation)
+    )
 
 
 def _enumerate_poses(context: HeuristicContext) -> frozenset[AbstractPose]:
@@ -85,42 +116,45 @@ def _edge_cost(pose: AbstractPose, context: HeuristicContext) -> float:
     return context.lie_roll
 
 
-def _build_reverse_edges(
-    poses: frozenset[AbstractPose],
+def _canonical_pair(first: Cell, second: Cell) -> AbstractSplitPair | None:
+    if first == second:
+        return None
+    left, right = sorted((first, second))
+    return AbstractSplitPair(left, right)
+
+
+def _merged_pose(pair: AbstractSplitPair) -> AbstractPose | None:
+    row_delta = abs(pair.first[0] - pair.second[0])
+    col_delta = abs(pair.first[1] - pair.second[1])
+    if (row_delta, col_delta) == (0, 1):
+        return AbstractPose(pair.first, Orientation.HORIZONTAL)
+    if (row_delta, col_delta) == (1, 0):
+        return AbstractPose(pair.first, Orientation.VERTICAL)
+    return None
+
+
+def _abstract_split_state(
+    first: Cell,
+    second: Cell,
     context: HeuristicContext,
-) -> tuple[dict[AbstractPose, list[tuple[AbstractPose, float]]], int]:
-    reverse: dict[AbstractPose, list[tuple[AbstractPose, float]]] = defaultdict(list)
-    edge_count = 0
-
-    for source in poses:
-        for action in _ROLL_ACTIONS:
-            result = roll_geometry(source.position, source.orientation, action)
-            if result is None:
-                continue
-
-            target_position, target_orientation = result
-            target = AbstractPose(target_position, target_orientation)
-            if target not in poses:
-                continue
-
-            weight = _edge_cost(source, context)
-            if weight < 0:
-                raise ValueError("H2 yêu cầu abstract edge cost không âm.")
-
-            reverse[target].append((source, weight))
-            edge_count += 1
-
-    return reverse, edge_count
+) -> AbstractState | None:
+    """Đổi cặp cube thành split state hoặc pose sau merge tự động."""
+    if first not in context.support_cells or second not in context.support_cells:
+        return None
+    pair = _canonical_pair(first, second)
+    if pair is None:
+        return None
+    return _merged_pose(pair) or pair
 
 
 def _reverse_dijkstra(
-    poses: frozenset[AbstractPose],
-    reverse: dict[AbstractPose, list[tuple[AbstractPose, float]]],
-    targets: frozenset[AbstractPose],
-) -> dict[AbstractPose, float]:
-    distances = {pose: math.inf for pose in poses}
+    states: frozenset[AbstractState],
+    reverse: dict[AbstractState, list[tuple[AbstractState, float]]],
+    targets: frozenset[AbstractState],
+) -> dict[AbstractState, float]:
+    distances = {state: math.inf for state in states}
     serial = itertools.count()
-    frontier: list[tuple[float, int, AbstractPose]] = []
+    frontier: list[tuple[float, int, AbstractState]] = []
 
     for target in targets:
         if target not in distances:
@@ -145,40 +179,178 @@ def _reverse_dijkstra(
 
 
 @lru_cache(maxsize=32)
-def _build_h2_cached(context: HeuristicContext) -> H2Heuristic:
+def _build_h2_safe_cached(context: HeuristicContext) -> H2Heuristic:
+    """Bản baseline: split switch là pseudo-goal, split state trả 0."""
     started = perf_counter()
     poses = _enumerate_poses(context)
-    reverse, edge_count = _build_reverse_edges(poses, context)
+    reverse: dict[AbstractState, list[tuple[AbstractState, float]]] = defaultdict(list)
+    edge_count = 0
 
-    targets = {
-        AbstractPose(context.goal, Orientation.STANDING),
-    }
+    for source in poses:
+        for action in _ROLL_ACTIONS:
+            result = roll_geometry(source.position, source.orientation, action)
+            if result is None:
+                continue
+
+            target_position, target_orientation = result
+            target = AbstractPose(target_position, target_orientation)
+            if target not in poses:
+                continue
+
+            weight = _edge_cost(source, context)
+            if weight < 0:
+                raise ValueError("H2 yêu cầu abstract edge cost không âm.")
+
+            reverse[target].append((source, weight))
+            edge_count += 1
+
+    targets = {AbstractPose(context.goal, Orientation.STANDING)}
     targets.update(
-        AbstractPose(cell, Orientation.STANDING)
-        for cell in context.split_switch_cells
+        AbstractPose(item.cell, Orientation.STANDING)
+        for item in context.split_switches
     )
-
-    distances = _reverse_dijkstra(poses, reverse, frozenset(targets))
+    distances = _reverse_dijkstra(
+        frozenset(poses), reverse, frozenset(targets)
+    )
     return H2Heuristic(
         distances=distances,
         preprocessing_seconds=perf_counter() - started,
         abstract_state_count=len(poses),
         abstract_edge_count=edge_count,
+        split_aware=False,
     )
 
 
-def build_h2(context: HeuristicContext, *, use_cache: bool = True) -> H2Heuristic:
+def _build_split_aware_graph(
+    poses: frozenset[AbstractPose],
+    context: HeuristicContext,
+) -> tuple[
+    frozenset[AbstractState],
+    dict[AbstractState, list[tuple[AbstractState, float]]],
+    int,
+]:
+    """Xây forward transitions rồi lưu dưới dạng reverse adjacency.
+
+    Normal poses được liệt kê đầy đủ. Split pairs chỉ được mở rộng từ các
+    ``split_cells`` đã khai báo và những pair tiếp theo có thể đạt tới; nhờ đó
+    không phải tạo toàn bộ tích Descartes của các ô support.
+    """
+    states: set[AbstractState] = set(poses)
+    reverse: dict[AbstractState, list[tuple[AbstractState, float]]] = defaultdict(list)
+    pending: deque[AbstractSplitPair] = deque()
+    queued_pairs: set[AbstractSplitPair] = set()
+    edge_count = 0
+
+    def register_pair(pair: AbstractSplitPair) -> None:
+        if pair in queued_pairs:
+            return
+        queued_pairs.add(pair)
+        states.add(pair)
+        pending.append(pair)
+
+    split_targets = {item.cell: item.split_cells for item in context.split_switches}
+
+    for item in context.split_switches:
+        split_state = _abstract_split_state(
+            item.split_cells[0], item.split_cells[1], context
+        )
+        if isinstance(split_state, AbstractSplitPair):
+            register_pair(split_state)
+
+    # Edges của intact block. Đứng trên P được ánh xạ ngay vào pair mà P tạo ra;
+    # không tạo một đường giả đi xuyên qua P như một floor bình thường.
+    for source in poses:
+        for action in _ROLL_ACTIONS:
+            result = roll_geometry(source.position, source.orientation, action)
+            if result is None:
+                continue
+
+            target_position, target_orientation = result
+            target_pose = AbstractPose(target_position, target_orientation)
+            if target_pose not in poses:
+                continue
+
+            target: AbstractState = target_pose
+            split_cells = split_targets.get(target_position)
+            if target_orientation is Orientation.STANDING and split_cells is not None:
+                split_target = _abstract_split_state(
+                    split_cells[0], split_cells[1], context
+                )
+                if split_target is None:
+                    continue
+                target = split_target
+                if isinstance(target, AbstractSplitPair):
+                    register_pair(target)
+
+            weight = _edge_cost(source, context)
+            if weight < 0:
+                raise ValueError("H2 yêu cầu abstract edge cost không âm.")
+            reverse[target].append((source, weight))
+            edge_count += 1
+
+    # Edges của split pair. Có thể chọn move cube nào mà không trả thêm
+    # switch_cube; bỏ chi phí đó là một relaxation hợp lệ và giữ lower bound.
+    while pending:
+        source = pending.popleft()
+        for moving in (source.first, source.second):
+            other = source.second if moving == source.first else source.first
+            for delta_row, delta_col in _SPLIT_DELTAS:
+                target_cell = (moving[0] + delta_row, moving[1] + delta_col)
+                next_state = _abstract_split_state(
+                    first=target_cell,
+                    second=other,
+                    context=context,
+                )
+                if next_state is None:
+                    continue
+
+                reverse[next_state].append((source, context.stand_roll))
+                edge_count += 1
+                if isinstance(next_state, AbstractSplitPair):
+                    register_pair(next_state)
+
+    return frozenset(states), reverse, edge_count
+
+
+@lru_cache(maxsize=32)
+def _build_h2_split_aware_cached(context: HeuristicContext) -> H2Heuristic:
+    started = perf_counter()
+    poses = _enumerate_poses(context)
+    states, reverse, edge_count = _build_split_aware_graph(poses, context)
+    goal = AbstractPose(context.goal, Orientation.STANDING)
+    distances = _reverse_dijkstra(states, reverse, frozenset({goal}))
+    return H2Heuristic(
+        distances=distances,
+        preprocessing_seconds=perf_counter() - started,
+        abstract_state_count=len(states),
+        abstract_edge_count=edge_count,
+        split_aware=True,
+    )
+
+
+def build_h2(
+    context: HeuristicContext,
+    *,
+    split_aware: bool = True,
+    use_cache: bool = True,
+) -> H2Heuristic:
     """Build H2 cho một level/cost config.
 
+    ``split_aware=True`` là bản đầy đủ và được A* dùng mặc định. Đặt
+    ``split_aware=False`` để tái tạo baseline split-safe trong benchmark.
     ``HeuristicContext`` hashable nên cache tự động phân biệt topology, goal,
-    split switch và hai loại roll cost.
+    split targets và hai loại roll cost.
     """
+    if split_aware:
+        if use_cache:
+            return _build_h2_split_aware_cached(context)
+        return _build_h2_split_aware_cached.__wrapped__(context)
     if use_cache:
-        return _build_h2_cached(context)
-    return _build_h2_cached.__wrapped__(context)
+        return _build_h2_safe_cached(context)
+    return _build_h2_safe_cached.__wrapped__(context)
 
 
 def clear_h2_cache() -> None:
     """Xóa cache H2, chủ yếu dùng trong test/benchmark."""
-    _build_h2_cached.cache_clear()
-
+    _build_h2_safe_cached.cache_clear()
+    _build_h2_split_aware_cached.cache_clear()

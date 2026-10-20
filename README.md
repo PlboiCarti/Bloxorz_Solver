@@ -19,13 +19,13 @@ chưa được triển khai.
 | HTTP adapter | Hoàn thành | FastAPI: levels, transition, solve, validation và error envelope |
 | Levels | Hoàn thành | 10 màn JSON, từ core đến màn kết hợp toàn bộ cơ chế |
 | Tests | Hoàn thành | Unit, advanced mechanics, solver, integration và HTTP tests |
-| GUI | Chưa triển khai | `gui/app.py`, `gui/controller.py`, `gui/renderer.py` đang rỗng |
+| GUI | Chưa triển khai | `gui/app.py`, `gui/controller.py`, `gui/renderer.py` đang rỗng; contract đã được ghi tại [`docs/Hướng dẫn UI.md`](docs/Hướng%20dẫn%20UI.md) |
 | Entrypoint | Chưa triển khai | `main.py` đang rỗng |
 | Experiments | Chưa triển khai | `experiments/*.py` và `results.csv` đang rỗng |
 
 Các tài liệu yêu cầu và phân chia module còn lại ở `docs/`. File
 `docs/deep-research-report.md` và `docs/h2 heuristic research.md` là các tài liệu
-nghiên cứu heuristic. H2 split-safe hiện đã được nối vào A*. Một số tài liệu contract lịch sử như
+nghiên cứu heuristic. H2 split-aware hiện đã được nối vào A*. Một số tài liệu contract lịch sử như
 `docs/api.md`, `docs/gui_api.md`, `docs/index.md`, `docs/status.md` và
 `docs/engine.md` hiện không có trong working tree; README này không tạo lại hoặc
 giả định các file đó tồn tại.
@@ -64,6 +64,25 @@ Phân chia module:
 - `levels/`: dữ liệu màn chơi tái sử dụng cho Engine, solver và server.
 - `tests/`: kiểm thử từ state/transition đến HTTP và toàn bộ level.
 - `gui/`, `main.py`, `experiments/`: khung dành cho phần tích hợp đang chờ triển khai.
+
+## Bàn giao cho GUI
+
+Engine và Solver hiện đã sẵn sàng để TV5 bắt đầu làm giao diện. GUI không cần
+chờ thêm heuristic hoặc sửa luật game; chỉ cần giữ `Engine` là nguồn sự thật,
+gọi `Engine.transition()` cho mọi thao tác và dùng `SearchResult.path` để replay
+lời giải. Có thể tích hợp theo một trong hai cách:
+
+- GUI Python chạy cùng process: import trực tiếp `game` và `solvers`.
+- GUI web/client tách process: gọi các endpoint trong `server.py`.
+
+Phương án đầu phù hợp với desktop GUI; phương án HTTP phù hợp với frontend web.
+Chi tiết state model, split mode, rendering, replay, metrics, keyboard và JSON
+request/response nằm trong [`docs/Hướng dẫn UI.md`](docs/Hướng%20dẫn%20UI.md).
+
+Các file GUI hiện chưa có implementation. TV5 sở hữu `gui/` và `main.py`, không
+nên chép luật fragile/bridge/split vào renderer hoặc controller. Nếu cần thêm
+thông tin hiển thị, ưu tiên mở rộng serialization/API qua thỏa thuận chung thay
+vì đọc hoặc sửa trực tiếp dữ liệu nội bộ của Solver.
 
 ## Cài đặt và chạy nhanh
 
@@ -361,11 +380,15 @@ h1(state) = ceil(Manhattan(anchor, goal) / 2)
 h2(state) = relaxed shortest-path cost theo orientation và topology
 ```
 
-H2 giữ `VOID`, giữ rolling geometry, coi fragile là support, coi mọi bridge là
-mở và dùng các split switch ở trạng thái STANDING làm pseudo-goal cost `0`.
-Sau khi concrete state đã split, H2 trả `0` để giữ lower bound an toàn; full
-split-pair abstraction là hướng mở rộng sau này. H2 được precompute bằng reverse
-Dijkstra theo `stand_roll`/`lie_roll` và cache theo `HeuristicContext`.
+H2 giữ `VOID`, giữ rolling geometry, coi fragile là support và coi mọi bridge là
+mở. Bản mặc định là split-aware: graph có `NormalPose` và canonical
+`AbstractSplitPair`; khi hai cube kề nhau, graph chuyển về pose nằm ngang/dọc
+để mô phỏng merge. Chi phí `SWITCH_CUBE` được bỏ qua trong graph trừu tượng,
+đây là relaxation an toàn vì vẫn giữ lower bound. H2 được precompute bằng
+reverse Dijkstra theo `stand_roll`/`lie_roll` và cache theo `HeuristicContext`.
+
+Baseline cũ vẫn có thể dựng bằng `build_h2(context, split_aware=False)`:
+split switch là pseudo-goal và mọi concrete split state nhận heuristic `0`.
 
 Có thể benchmark các heuristic bằng callback:
 
@@ -504,6 +527,7 @@ Các nhóm lỗi chính gồm `INVALID_JSON`, `REQUEST_TOO_LARGE`,
 ├── docs/
 │   ├── bloxorz_project_requirements.md
 │   ├── Mô tả công việc.md
+│   ├── Hướng dẫn UI.md
 │   ├── deep-research-report.md
 │   └── h2 heuristic research.md
 ├── pyproject.toml
@@ -520,7 +544,7 @@ Test suite bao phủ:
 - 12 transition geometry cases cùng fall/illegal/goal behavior;
 - fragile, bridge, soft/heavy/split switch, bridge modes, split/merge và collision;
 - BFS, DFS, UCS, A*, metrics, cycle handling và replay path;
-- H2: relaxed topology, pseudo-goal split switch, cache và consistency trên level nhỏ;
+- H2: relaxed topology, split-pair abstraction, cache và consistency trên level nhỏ;
 - tất cả 10 level, gồm các màn advanced;
 - HTTP schema, state validation, error envelope và solver endpoint.
 
@@ -548,8 +572,7 @@ sau vẫn cần triển khai:
 3. Hoàn thiện `experiments/benchmark.py`, `run_experiments.py` và bảng kết quả
    để so sánh search time, peak memory, expanded nodes, solution length và cost.
 4. Hoàn thiện benchmark cold/warm cho H0/H1/H2/UCS trong `experiments/`.
-5. Nếu cần heuristic mạnh hơn sau split, mở rộng H2 thành full split-pair abstraction.
-6. Bổ sung report PDF và video demo theo yêu cầu môn học.
+5. Bổ sung report PDF và video demo theo yêu cầu môn học.
 
 ## Quy ước phát triển
 

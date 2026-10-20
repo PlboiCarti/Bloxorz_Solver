@@ -25,7 +25,11 @@ def solve(
     Nếu không truyền heuristic, A* dùng H2 mặc định. Có thể truyền H0/H1/H2
     khác nhau khi benchmark mà không thay đổi vòng lặp tìm kiếm.
     """
-    estimate = heuristic if heuristic is not None else build_h2(engine.get_heuristic_context())
+    estimate = (
+        heuristic
+        if heuristic is not None
+        else build_h2(engine.get_heuristic_context(), split_aware=True)
+    )
     tracemalloc.start()
     started = time.perf_counter()
 

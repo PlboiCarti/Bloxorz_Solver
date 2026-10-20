@@ -42,10 +42,12 @@ def test_heuristic_context_relaxes_tiles_and_exposes_split_switches():
     )
 
 
-def test_h2_goal_and_split_state_are_zero():
+def test_h2_goal_and_split_modes_are_safe():
     engine = Engine(load_board("levels/level8.json"))
     clear_h2_cache()
-    h2 = build_h2(engine.get_heuristic_context())
+    context = engine.get_heuristic_context()
+    h2 = build_h2(context)
+    h2_safe = build_h2(context, split_aware=False)
 
     goal = State(engine.board.goal, Orientation.STANDING)
     split_switch = State(
@@ -62,8 +64,10 @@ def test_h2_goal_and_split_state_are_zero():
     )
 
     assert h2(goal) == 0.0
-    assert h2(split_switch) == 0.0
+    assert h2(split_switch) >= 0.0
+    assert h2_safe(split_switch) == 0.0
     assert h2(split) == 0.0
+    assert h2_safe(split) == 0.0
 
 
 def test_h2_is_consistent_on_reachable_level1_states():
@@ -72,6 +76,24 @@ def test_h2_is_consistent_on_reachable_level1_states():
 
     for state in _reachable_states(engine):
         assert h2(state) >= 0.0
+        for action in engine.legal_actions(state):
+            result = engine.transition(state, action)
+            assert result.status is TransitionStatus.OK
+            assert result.state is not None
+            assert h2(state) <= (
+                engine.step_cost(state, action, result.state) + h2(result.state) + 1e-9
+            )
+
+
+def test_split_aware_h2_keeps_a_nonzero_split_pair_distance():
+    engine = Engine(load_board("levels/level8.json"))
+    h2 = build_h2(engine.get_heuristic_context(), split_aware=True)
+    split_states = [state for state in _reachable_states(engine) if state.split_mode]
+
+    assert split_states
+    assert any(h2(state) > 0.0 for state in split_states)
+
+    for state in split_states:
         for action in engine.legal_actions(state):
             result = engine.transition(state, action)
             assert result.status is TransitionStatus.OK

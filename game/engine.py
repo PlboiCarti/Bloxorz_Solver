@@ -8,7 +8,7 @@ from game.actions import Action, Orientation
 from game.board import Board, TileType
 from game.cost_config import DEFAULT_COST, CostConfig
 from game.geometry import ROLL_TABLE, roll_geometry
-from game.heuristic_context import HeuristicContext
+from game.heuristic_context import HeuristicContext, SplitSwitchContext
 from game.state import Cell, State
 from game.switches import SwitchType, apply_targets, build_mechanics, is_triggered
 from game.tiles import support_failure
@@ -97,15 +97,15 @@ class Engine:
             for col in range(self.board.cols)
             if self.board.grid[row][col] is not TileType.VOID
         )
-        split_switch_cells = frozenset(
-            switch.cell
+        split_switches = tuple(
+            SplitSwitchContext(switch.cell, switch.split_cells)
             for switch in self.mechanics.switches
-            if switch.type is SwitchType.SPLIT
+            if switch.type is SwitchType.SPLIT and switch.split_cells is not None
         )
         return HeuristicContext(
             support_cells=support_cells,
             goal=self.board.goal,
-            split_switch_cells=split_switch_cells,
+            split_switches=split_switches,
             stand_roll=self._cost.stand_roll,
             lie_roll=self._cost.lie_roll,
         )

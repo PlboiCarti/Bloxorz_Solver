@@ -45,3 +45,15 @@ def test_all_solvers_replay_and_cost(level_file: str, solver) -> None:
     assert result.total_cost > 0
     if solver in (solve_ucs, solve_astar):
         assert result.total_cost <= baseline.total_cost + 1e-9
+
+
+@pytest.mark.parametrize("level_file", ["level8.json", "level9.json", "level10.json"])
+def test_astar_split_aware_h2_matches_ucs_on_split_levels(level_file: str) -> None:
+    engine = Engine(load_board(Path("levels") / level_file))
+    ucs = solve_ucs(engine.get_initial_state(), engine)
+    astar = solve_astar(engine.get_initial_state(), engine)
+
+    assert ucs.solved is True
+    assert astar.solved is True
+    assert astar.total_cost == pytest.approx(ucs.total_cost)
+    assert _replay_to_goal(engine, astar.path)
