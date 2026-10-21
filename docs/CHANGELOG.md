@@ -2,6 +2,8 @@
 
 ## 2026-10-21
 
+- Tăng chữ metrics lời giải trong `DI CHUYỂN` từ 8px lên 12px, và 7px lên 11px ở cửa sổ thấp; giảm khoảng cách lưới trong chế độ cửa sổ thấp để giữ bảng gọn. Cập nhật README. Chưa chạy browser/test.
+- Rà soát lỗi hiển thị bảng `DI CHUYỂN`: hợp nhất các khai báo CSS trùng lặp, đưa cấu hình chiều rộng về một bộ breakpoint thống nhất, giữ nội dung hai cột và bỏ giới hạn cuộn riêng ở cả bảng lẫn khung cha. Route `/` đã trỏ tới `gui/index.html`; tại lúc kiểm tra không có server lắng nghe cổng 8000 nên chưa xác nhận được trang thực tế trên trình duyệt. Cập nhật README; chưa chạy browser/test.
 - Mở rộng bảng điều khiển để hiện đầy đủ lựa chọn màn, thuật toán, metrics và replay mà không cuộn; bỏ bốn nút hướng trên GUI, giữ điều khiển bằng phím và vuốt. Cập nhật README. Chưa chạy browser/test.
 
 ## 2026-10-20

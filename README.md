@@ -69,7 +69,7 @@ Engine quyết định transition, còn solver tìm đường từ state hiện 
 trả action path và metrics. GUI phát lại path bằng request tuần tự tới /transition,
 cập nhật mesh theo state backend trả về, và dừng nếu transition không còn hợp lệ.
 Không chép luật game hoặc thuật toán tìm kiếm sang JavaScript.
-Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`. Bảng được mở rộng để hiện đầy đủ thông số và replay, không cần cuộn. Di chuyển bằng phím mũi tên, WASD hoặc vuốt; cụm bốn nút hướng trên màn hình đã được bỏ.
+Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`. Bảng rộng tối đa 420px trên màn hình lớn, 340px trên màn hình hẹp (320px ở màn hình rất hẹp); nội dung dùng bố cục hai cột, không đặt vùng cuộn riêng, và vẫn co theo chiều cao cửa sổ. Metrics lời giải được hiển thị cỡ chữ lớn hơn để dễ đọc; replay và tốc độ nằm cùng bảng. Di chuyển bằng phím mũi tên, WASD hoặc vuốt; cụm bốn nút hướng trên màn hình đã được bỏ.
 
 Three.js được nạp qua module CDN jsDelivr, nên trình duyệt cần truy cập được CDN.
 Nếu chỉ thấy HUD/nền mà không có bàn chơi, mở DevTools Console để xem lỗi khởi tạo;
