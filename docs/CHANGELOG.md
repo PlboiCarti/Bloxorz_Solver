@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-21
+
+- Mở rộng bảng điều khiển để hiện đầy đủ lựa chọn màn, thuật toán, metrics và replay mà không cuộn; bỏ bốn nút hướng trên GUI, giữ điều khiển bằng phím và vuốt. Cập nhật README. Chưa chạy browser/test.
+
 ## 2026-10-20
 
 - Đưa bộ chọn BFS/DFS/UCS/A* và nút `SOLVE` lên đầu bảng điều khiển để dễ thấy; thêm nhãn thuật toán và cuộn nội bộ cho bảng ở màn hình thấp. Cập nhật README. Chưa chạy browser/test.

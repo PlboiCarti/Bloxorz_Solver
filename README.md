@@ -69,8 +69,7 @@ Engine quyết định transition, còn solver tìm đường từ state hiện 
 trả action path và metrics. GUI phát lại path bằng request tuần tự tới /transition,
 cập nhật mesh theo state backend trả về, và dừng nếu transition không còn hợp lệ.
 Không chép luật game hoặc thuật toán tìm kiếm sang JavaScript.
-Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`; bảng tự cuộn khi
-nội dung cao hơn vùng nhìn.
+Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`. Bảng được mở rộng để hiện đầy đủ thông số và replay, không cần cuộn. Di chuyển bằng phím mũi tên, WASD hoặc vuốt; cụm bốn nút hướng trên màn hình đã được bỏ.
 
 Three.js được nạp qua module CDN jsDelivr, nên trình duyệt cần truy cập được CDN.
 Nếu chỉ thấy HUD/nền mà không có bàn chơi, mở DevTools Console để xem lỗi khởi tạo;

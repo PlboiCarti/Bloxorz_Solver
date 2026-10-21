@@ -45,14 +45,10 @@
     .status-line span { color: var(--muted); }
     .status-line strong { text-align: right; font-weight: 750; }
     .status-message { margin-top: 12px; padding: 10px 11px; background: #f1f7fa; border: 1px solid #e0edf1; border-radius: 10px; font-size: 12px; line-height: 1.4; color: #365367; min-height: 38px; }
-    .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     button { border: 1px solid #dce4ed; border-radius: 10px; background: white; color: var(--ink); min-height: 40px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; transition: background .15s, transform .15s, border-color .15s; }
     button:hover:not(:disabled) { border-color: #9bbfc7; background: #f5fbfc; }
     button:active:not(:disabled) { transform: translateY(1px); }
     button:disabled { opacity: .45; cursor: not-allowed; }
-    .controls .empty { visibility: hidden; }
-    .controls button .arrow { display: block; font-size: 18px; line-height: 1.1; }
-    .controls button small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
     .primary { width: 100%; color: white; background: var(--accent); border-color: var(--accent); }
     .primary:hover:not(:disabled) { background: var(--accent-dark); border-color: var(--accent-dark); }
     .button-row { display: flex; gap: 8px; margin-top: 9px; }
@@ -100,27 +96,22 @@
     }
     .tile-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
     .tile-legend .ic { width: 20px; height: 20px; flex: none; }
-    .game-controls { position: absolute; z-index: 5; right: 20px; bottom: 18px; display: flex; align-items: end; gap: 9px; width: 250px; pointer-events: auto; }
+    .game-controls { position: absolute; z-index: 5; right: 20px; bottom: 18px; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 290px; pointer-events: auto; }
     .side-card { border: 1px solid #fff4c7aa; border-radius: 18px; background: #fff0b9df; padding: 11px; box-shadow: 0 5px 18px #15526335; backdrop-filter: blur(8px); }
-    .state-hud { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; flex: 1; }
+    .state-hud { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; flex: 0 0 auto; }
     .state-hud div { min-width: 0; display: grid; gap: 3px; text-align: center; }
     .state-hud span { color: #806a38; font-size: 8px; font-weight: 850; letter-spacing: .06em; }
     .state-hud strong { overflow: hidden; color: #483d28; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-    .input-hud { width: 136px; flex: 0 0 136px; max-height: calc(100svh - 32px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-    .input-hud h2 { margin: 0 0 5px; color: #796334; font-size: 9px; text-align: center; letter-spacing: .12em; }
-    .controls { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+    .input-hud { width: 100%; flex: 0 0 auto; max-height: none; overflow: visible; padding: 16px; }
+    .input-hud h2 { margin: 0 0 9px; color: #796334; font-size: 12px; text-align: center; letter-spacing: .12em; }
     button { border-color: #e7c95c; color: #5d4c24; background: #fff8d8; min-height: 34px; font-size: 9px; box-shadow: 0 2px 0 #d3ad43; }
     button:hover:not(:disabled) { border-color: #f3a92a; background: #fffdf0; }
-    .controls button { width: 34px; min-height: 34px; justify-self: center; border-radius: 50%; padding: 1px; }
-    .controls button .arrow { font-size: 15px; }
-    .controls button small { display: none; }
-    .controls .empty { visibility: hidden; }
-    .button-row { gap: 5px; margin-top: 7px; }
-    .button-row button { min-height: 30px; padding: 2px 4px; font-size: 8px; }
+    .button-row { gap: 7px; margin-top: 10px; }
+    .button-row button { min-height: 36px; padding: 3px 6px; font-size: 10px; }
     .solver-actions { margin-top: 5px; }
-    .solver-actions #solve { min-height: 32px; font-size: 9px; letter-spacing: .04em; }
-    .select-row { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 6px; color: #796334; font-size: 8px; font-weight: 800; }
-    .select-row select { width: 100%; min-height: 27px; padding: 3px 5px; border: 1px solid #e7c95c; border-radius: 7px; background: #fff8d8; color: #5d4c24; font: inherit; font-size: 9px; }
+    .solver-actions #solve { min-height: 38px; font-size: 11px; letter-spacing: .04em; }
+    .select-row { display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 9px; color: #796334; font-size: 10px; font-weight: 800; }
+    .select-row select { width: 100%; min-height: 36px; padding: 5px 8px; border: 1px solid #e7c95c; border-radius: 8px; background: #fff8d8; color: #5d4c24; font: inherit; font-size: 11px; }
     .solver-panel { position: absolute; z-index: 4; left: 20px; bottom: 20px; width: 220px; pointer-events: none; }
     .solver-panel h3 { margin: 0 0 4px; color: #796334; font-size: 9px; text-align: center; letter-spacing: .1em; }
     .solver-table { width: 100%; border-collapse: collapse; color: #594a2b; font-size: 8px; text-align: left; }
@@ -146,9 +137,9 @@
       .level-hud { top: 27px; max-width: 50vw; font-size: clamp(17px,5vw,23px); }
       .board-hud { top: 13px; right: 12px; }
       #reset.restart-button { top: 42px; right: 10px; min-height: 31px; padding: 3px 8px; font-size: 9px; }
-      .game-controls { right: 10px; bottom: 11px; width: auto; gap: 6px; align-items: end; }
+      .game-controls { right: 10px; bottom: 11px; width: min(260px, calc(100vw - 20px)); gap: 6px; align-items: stretch; }
       .state-hud { display: none; }
-      .input-hud { width: 126px; flex-basis: 126px; }
+      .input-hud { width: 100%; flex-basis: auto; padding: 13px; }
       .solver-panel { left: 10px; bottom: 10px; width: 158px; padding: 8px; }
       .stage-label { left: auto; right: 10px; bottom: clamp(100px, 18vh, 150px); transform: none; max-width: calc(100vw - 190px); text-align: right; }
       .stage-label span { max-width: 34vw; }
@@ -230,14 +221,6 @@
         </label>
         <div class="button-row solver-actions">
           <button id="solve" class="primary" aria-label="Tìm lời giải bằng solver Python" title="Tìm lời giải bằng solver Python">▶ SOLVE</button>
-        </div>
-        <div class="controls">
-          <button class="empty" tabindex="-1" aria-hidden="true"></button>
-          <button data-move="U" aria-label="Lăn lên"><span class="arrow">↑</span><small>W / ↑</small></button>
-          <button class="empty" tabindex="-1" aria-hidden="true"></button>
-          <button data-move="L" aria-label="Lăn trái"><span class="arrow">←</span><small>A / ←</small></button>
-          <button data-move="D" aria-label="Lăn xuống"><span class="arrow">↓</span><small>S / ↓</small></button>
-          <button data-move="R" aria-label="Lăn phải"><span class="arrow">→</span><small>D / →</small></button>
         </div>
         <div class="button-row">
           <button id="new-game">NEW GAME</button>
@@ -1333,7 +1316,6 @@
   function updateControls() {
     const locked = busy || !apiReady;
     const manual = controllerMode === 'MANUAL_PLAY';
-    document.querySelectorAll('[data-move]').forEach(button => { button.disabled = locked || !manual; });
     document.getElementById('switch-cube').disabled = locked || !manual || visualState.mode !== 'SPLIT';
     document.getElementById('reset').disabled = locked;
     document.getElementById('new-game').disabled = locked;
@@ -1920,7 +1902,7 @@
       renderLevelTitle(level, game.board);
       controllerMode = 'MANUAL_PLAY';
       busy = false;
-      renderStatus('Đã tải màn. Dùng phím mũi tên hoặc nút di chuyển.');
+      renderStatus('Đã tải màn. Dùng phím mũi tên, WASD hoặc vuốt để di chuyển.');
     } catch (error) {
       busy = false;
       controllerMode = 'ERROR';
@@ -1930,9 +1912,6 @@
     }
   }
 
-  document.querySelectorAll('[data-move]').forEach(button => {
-    button.addEventListener('click', () => doMove(button.dataset.move));
-  });
   document.getElementById('switch-cube').addEventListener('click', () => doMove('SWITCH'));
   document.getElementById('reset').addEventListener('click', resetGame);
   document.getElementById('new-game').addEventListener('click', startNewGame);
@@ -2036,7 +2015,7 @@
     apiReady = true;
     busy = false;
     controllerMode = 'MANUAL_PLAY';
-    renderStatus('Đã kết nối. Dùng phím mũi tên hoặc nút di chuyển.');
+    renderStatus('Đã kết nối. Dùng phím mũi tên, WASD hoặc vuốt để di chuyển.');
   }).catch(error => {
     makeBlock(visualState);
     busy = false;
