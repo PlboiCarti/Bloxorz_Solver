@@ -6,8 +6,8 @@ và sử dụng layout package ở thư mục gốc (`game/`,
 `solvers/`), không có `src/`.
 
 README này mô tả implementation hiện tại trong working tree. Engine, các solver,
-HTTP adapter và GUI Three.js đã có; GUI gọi Python qua cùng-origin API. Entrypoint
-main.py và phần benchmark chưa được triển khai.
+HTTP adapter, GUI Three.js và benchmark cố định 100 mẫu đã có; GUI gọi Python qua
+cùng-origin API. Entrypoint main.py vẫn chưa được triển khai.
 
 ## Trạng thái hiện tại
 
@@ -21,7 +21,7 @@ main.py và phần benchmark chưa được triển khai.
 | Tests | Chưa có trong checkout | Không có thư mục `tests/`; chưa thể xác nhận automated coverage |
 | GUI | Đã tích hợp | gui/index.html gọi /transition cho thao tác và replay; gọi /solve để tìm đường bằng BFS/DFS/UCS/A* |
 | Entrypoint | Chưa triển khai | `main.py` đang rỗng |
-| Experiments | Chưa triển khai | `benchmark.py`, `run_experiments.py` và `results.csv` hiện rỗng |
+| Experiments | Đã triển khai | Bộ test cố định 100 mẫu, 400 lượt benchmark BFS/DFS/UCS/A*, CSV và metadata |
 
 Tài liệu kiến trúc, API và hướng dẫn GUI nằm trong docs/. Hai báo cáo nghiên cứu
 heuristic là deep-research-report.md và h2 heuristic research.md. A* mặc định
@@ -60,7 +60,8 @@ Phân chia module:
 - `solvers/`: bốn thuật toán tìm kiếm và schema kết quả chung.
 - `server.py`: adapter FastAPI không trạng thái.
 - `levels/`: dữ liệu màn chơi tái sử dụng cho Engine, solver và server.
-- `gui/index.html`: giao diện Three.js, client API, điều khiển và hoạt ảnh; `main.py` cùng `experiments/` vẫn là phần chưa triển khai.
+- `gui/index.html`: giao diện Three.js, client API, điều khiển và hoạt ảnh.
+- `experiments/`: test set cố định, script tạo test set, benchmark runner và kết quả thô.
 
 ## Luồng tích hợp GUI
 
@@ -500,7 +501,7 @@ Các nhóm lỗi chính gồm `INVALID_JSON`, `REQUEST_TOO_LARGE`,
 │   ├── app.py              # stub GUI Python, hiện rỗng
 │   ├── controller.py       # stub GUI Python, hiện rỗng
 │   └── renderer.py         # stub GUI Python, hiện rỗng
-├── experiments/            # stub benchmark và file kết quả, hiện rỗng
+├── experiments/            # test set cố định, benchmark runner và kết quả
 ├── main.py                 # entrypoint dự kiến, hiện rỗng
 ├── docs/
 │   ├── Agents.md
@@ -521,9 +522,9 @@ pull request: cài dependency, kiểm tra syntax bằng `compileall` và kiểm 
 import các module chính. Các mục smoke test trong `docs/API_CONTRACT.md` vẫn là
 tiêu chí cần kiểm tra thủ công, không phải automated test.
 
-Báo cáo chạy thực tế cho 11 màn và bốn solver nằm trong
-`BENCHMARK_LEVELS.md`; các script trong `experiments/` vẫn là phần benchmark
-chưa hoàn thiện tự động.
+Báo cáo chạy cũ cho 11 màn và bốn solver nằm trong `BENCHMARK_LEVELS.md`.
+Benchmark tự động trên bộ test cố định 100 mẫu nằm trong `experiments/README.md`;
+raw metrics được ghi vào `experiments/results.csv` và cấu hình chạy vào metadata JSON.
 
 ## Việc còn lại
 
@@ -532,8 +533,8 @@ Các phần tiếp theo để hoàn thiện và nghiệm thu đồ án:
 1. Kiểm tra thủ công GUI/API qua level0–level10, gồm các ô đặc biệt, solver và replay.
 2. Chốt workflow khởi động; `python server.py` chạy web GUI cùng API.
    `main.py` chưa phải entrypoint của web GUI.
-3. Hoàn thiện `experiments/benchmark.py`, `run_experiments.py` và bảng kết quả
-   để so sánh search time, peak memory, expanded nodes, solution length và cost.
+3. Phân tích số liệu benchmark, tạo bảng/biểu đồ và thảo luận kết quả cho report;
+   runner đã đo search time, peak memory, expanded nodes, solution length và cost.
 4. Xác nhận ý nghĩa cost và admissibility/consistency của H2 trước khi khẳng định
    điều kiện tối ưu của A*; sau đó hoàn thiện
    benchmark cold/warm cho H0/H1/H2/UCS trong `experiments/`.

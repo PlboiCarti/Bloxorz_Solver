@@ -14,7 +14,7 @@
 | HTTP adapter              | IMPLEMENTED — `server.py` (FastAPI): `/levels`, `/levels/{name}`, `/transition`, `/solve` |
 | GUI (TV5)                 | INTEGRATED — `gui/index.html` dùng Three.js và gọi API để chuyển trạng thái, solve/replay |
 | Entrypoint                | `main.py` vẫn rỗng; chạy GUI/API bằng `python server.py`                   |
-| Experiments               | NOT IMPLEMENTED — `experiments/` chưa có benchmark chạy được               |
+| Experiments               | IMPLEMENTED — test set cố định 100 mẫu; benchmark BFS/DFS/UCS/A* đã chạy 400 lượt |
 | Automated checks          | CONFIGURED — `.github/workflows/ci.yml` chạy syntax/import smoke check; chưa có `tests/` |
 
 - Chưa có test suite; CI chỉ chạy syntax/import smoke check. Server chưa được khởi chạy trong lượt cập nhật này.
@@ -28,7 +28,7 @@
 | H2 admissibility/consistency           | Chưa có xác nhận bằng kiểm tra đối chiếu | Không tuyên bố A* tối ưu đến khi xác nhận với cost và transition cuối |
 | Cost semantics                         | Cần thống nhất trong nhóm             | `docs/api.md` §6.2; `bridge_cross_penalty` hiện chưa áp dụng |
 | Automated validation                  | Checkout chưa có test suite            | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu; CI hiện chỉ là smoke check |
-| `experiments/`                         | Chưa có benchmark chạy được            | Hoàn thiện benchmark cold/warm và ghi lại metric solver |
+| `experiments/`                         | Bộ benchmark cơ bản đã chạy             | Phân tích số liệu, biểu đồ và cân nhắc benchmark cold/warm H0/H1/H2 |
 | `main.py`                              | Chưa phải entrypoint                   | Dùng `python server.py` để chạy GUI cùng API          |
 
 ## 3. Delete-zone
