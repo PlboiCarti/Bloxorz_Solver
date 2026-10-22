@@ -1,0 +1,196 @@
+{
+  "name": "level19 - labyrinth of toggles",
+  "grid": [
+    ".......o.......",
+    "##o#...#.......",
+    "#####..#.......",
+    "#oS#####BB##BB#",
+    "#####B..#...#..",
+    "##o#....#...#..",
+    "#.......o..###.",
+    "#.........##G#.",
+    "#BBx......####."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        3,
+        8
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        3,
+        9
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        3,
+        12
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        3,
+        13
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C1",
+      "cell": [
+        4,
+        5
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "D1",
+      "cell": [
+        8,
+        1
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "D2",
+      "cell": [
+        8,
+        2
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        0,
+        7
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_open"
+        }
+      ]
+    },
+    {
+      "cell": [
+        1,
+        2
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        3,
+        1
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        2
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        6,
+        8
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "D1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "D2",
+          "mode": "permanent_open"
+        }
+      ]
+    },
+    {
+      "cell": [
+        8,
+        3
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "C1",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,276 @@
+{
+  "name": "level20 - grandmaster fortress",
+  "grid": [
+    "...........###B",
+    ".###....x..#G#B",
+    ".###BB###BB###B",
+    ".###..###...#..",
+    ".FFF..o##...F..",
+    "..F...###..FFF.",
+    "..#...###..###.",
+    "B###BB#o#BB#S#.",
+    "B#x#..x....###.",
+    "B###..........."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        0,
+        14
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        14
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        2,
+        4
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        2,
+        5
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "C1",
+      "cell": [
+        2,
+        9
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C2",
+      "cell": [
+        2,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A3",
+      "cell": [
+        2,
+        14
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "D1",
+      "cell": [
+        7,
+        0
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "E1",
+      "cell": [
+        7,
+        4
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "E2",
+      "cell": [
+        7,
+        5
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "F1",
+      "cell": [
+        7,
+        9
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "F2",
+      "cell": [
+        7,
+        10
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "D2",
+      "cell": [
+        8,
+        0
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "D3",
+      "cell": [
+        9,
+        0
+      ],
+      "initial": "open"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        1,
+        8
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "C1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "C2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        4,
+        6
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "C1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "C2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "E1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "E2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "F1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "F2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        7,
+        7
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "C1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "C2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "E1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "E2",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "F1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "F2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        8,
+        2
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A3",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        8,
+        6
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "E1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "E2",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}

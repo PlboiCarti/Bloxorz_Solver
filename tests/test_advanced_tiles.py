@@ -10,7 +10,7 @@ Bao gồm:
 - Đổi khối điều khiển (SWITCH_CUBE)
 - Hợp nhất khối (Merge: kề ngang -> HORIZONTAL, kề dọc -> VERTICAL)
 - Kiểm thực cấu hình cầu/công tắc (Level validation)
-- Kiểm thử tích hợp giải thành công từ level2.json đến level10.json
+- Kiểm thử tích hợp giải thành công từ level2.json đến level20.json
 """
 
 from collections import deque
@@ -611,7 +611,7 @@ def test_mechanics_validation_errors():
         )
 
 
-# --- 5. Integration Tests on all stages (level2.json to level10.json) ---
+# --- 5. Integration Tests on all stages (level2.json to level20.json) ---
 
 
 @pytest.mark.parametrize(
@@ -626,6 +626,16 @@ def test_mechanics_validation_errors():
         ("level8.json", 15),
         ("level9.json", 15),
         ("level10.json", 30),
+        ("level11.json", 40),
+        ("level12.json", 40),
+        ("level13.json", 50),
+        ("level14.json", 50),
+        ("level15.json", 50),
+        ("level16.json", 50),
+        ("level17.json", 50),
+        ("level18.json", 50),
+        ("level19.json", 60),
+        ("level20.json", 60),
     ],
 )
 def test_all_designed_levels_solvable(level_file: str, expected_min_len: int):

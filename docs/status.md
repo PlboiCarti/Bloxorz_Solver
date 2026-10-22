@@ -16,9 +16,9 @@
 | Entrypoint                | EMPTY — `main.py` 0 byte                                                   |
 | Experiments               | EMPTY — `experiments/*.py` 0 byte, `results.csv` rỗng                      |
 
-- Toàn bộ test: **100 passed** (`uv run pytest -q`, ~5s).
+- Toàn bộ test: **120 passed** (`pytest -q`, ~8s).
 - `ruff check .` và `pyright` sạch (`pyright` chỉ include `game` + `tests`).
-- 10/10 `levels/level1-10.json` nạp + validate + khởi tạo state được.
+- 20/20 `levels/level1-20.json` nạp + validate + khởi tạo state được.
 
 ## 2. Blocker / việc đang mở
 

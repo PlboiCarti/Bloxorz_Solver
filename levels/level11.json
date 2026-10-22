@@ -1,0 +1,52 @@
+{
+  "name": "level11 - bridge trap & winding climb",
+  "grid": [
+    ".###B.......",
+    ".#G#B.......",
+    ".###........",
+    ".#...######.",
+    ".#...##..##.",
+    "S######..###",
+    ".....#o....#",
+    ".....####..#",
+    ".....#######",
+    "........###."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        0,
+        4
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        4
+      ],
+      "initial": "open"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        6,
+        6
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_closed"
+        }
+      ]
+    }
+  ]
+}

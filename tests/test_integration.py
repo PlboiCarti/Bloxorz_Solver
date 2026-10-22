@@ -7,7 +7,7 @@ import pytest
 from game import Engine, TransitionStatus, load_board
 from solvers import solve_astar, solve_bfs, solve_dfs, solve_ucs
 
-LEVEL_FILES = [f"level{i}.json" for i in range(1, 11)]
+LEVEL_FILES = [f"level{i}.json" for i in range(1, 21)]
 SOLVERS = [solve_bfs, solve_dfs, solve_ucs, solve_astar]
 
 

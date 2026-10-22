@@ -1,0 +1,85 @@
+{
+  "name": "level13 - heavy dual locks",
+  "grid": [
+    "........###...",
+    "...###..###...",
+    "#BB#S#########",
+    "#BB###......x#",
+    "#...........##",
+    "#...........##",
+    "#.......######",
+    "#####...###...",
+    ".##G#...###...",
+    "..###...#####x"
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        2,
+        1
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        2,
+        2
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        3,
+        1
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        3,
+        2
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        3,
+        12
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "A2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        9,
+        13
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}
