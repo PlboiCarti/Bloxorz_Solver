@@ -34,7 +34,7 @@
 | Game Engine | TV1/2  | `game/`      | IMPLEMENTED (core + advanced mechanics)           |
 | AI Solver   | TV3/4  | `solvers/`   | IMPLEMENTED (BFS/DFS/UCS/A*)                      |
 | GUI         | TV5    | `gui/`       | INTEGRATED (`index.html`); Python GUI stubs chưa dùng |
-| Integration | lead   | `main.py`, `server.py`, `experiments/` | `server.py` OK; `main.py` và benchmark chưa hoàn thành |
+| Integration | lead   | `main.py`, `server.py`, `experiments/` | `server.py` OK; `main.py` và benchmark tự động chưa hoàn thành |
 
 Chi tiết ranh giới code: `Agents.md` §"Architecture rules".
 

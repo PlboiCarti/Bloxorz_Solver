@@ -69,7 +69,7 @@ Engine quyết định transition, còn solver tìm đường từ state hiện 
 trả action path và metrics. GUI phát lại path bằng request tuần tự tới /transition,
 cập nhật mesh theo state backend trả về, và dừng nếu transition không còn hợp lệ.
 Không chép luật game hoặc thuật toán tìm kiếm sang JavaScript.
-Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`. Bảng rộng tối đa 420px trên màn hình lớn, 340px trên màn hình hẹp (320px ở màn hình rất hẹp); nội dung dùng bố cục hai cột, không đặt vùng cuộn riêng, và vẫn co theo chiều cao cửa sổ. Metrics lời giải được hiển thị cỡ chữ lớn hơn để dễ đọc; replay và tốc độ nằm cùng bảng. Di chuyển bằng phím mũi tên, WASD hoặc vuốt; cụm bốn nút hướng trên màn hình đã được bỏ.
+Trong bảng `DI CHUYỂN`, chọn màn và thuật toán rồi bấm `SOLVE`. Bảng rộng 250px trên màn hình lớn và 210px trên màn hình hẹp; các ô chọn và nút được tăng kích thước để dễ thao tác. Metrics lời giải, replay và tốc độ nằm cùng bảng. Di chuyển bằng phím mũi tên, WASD hoặc vuốt; cụm bốn nút hướng trên màn hình đã được bỏ.
 
 Three.js được nạp qua module CDN jsDelivr, nên trình duyệt cần truy cập được CDN.
 Nếu chỉ thấy HUD/nền mà không có bàn chơi, mở DevTools Console để xem lỗi khởi tạo;
@@ -515,10 +515,15 @@ Các nhóm lỗi chính gồm `INVALID_JSON`, `REQUEST_TOO_LARGE`,
 
 ## Kiểm thử và chất lượng
 
-Checkout hiện tại không có thư mục `tests/`, `pyproject.toml`, `uv.lock` hoặc
-`.github/workflows/`. Các mục smoke test trong `docs/API_CONTRACT.md` là tiêu
-chí cần kiểm tra, không phải bằng chứng test đã chạy. Chưa chạy test trong lượt
-cập nhật này.
+Checkout hiện tại không có thư mục `tests/`, `pyproject.toml` hoặc `uv.lock`.
+Workflow `.github/workflows/ci.yml` chạy smoke check trên branch `gui_v2` và
+pull request: cài dependency, kiểm tra syntax bằng `compileall` và kiểm tra
+import các module chính. Các mục smoke test trong `docs/API_CONTRACT.md` vẫn là
+tiêu chí cần kiểm tra thủ công, không phải automated test.
+
+Báo cáo chạy thực tế cho 11 màn và bốn solver nằm trong
+`BENCHMARK_LEVELS.md`; các script trong `experiments/` vẫn là phần benchmark
+chưa hoàn thiện tự động.
 
 ## Việc còn lại
 

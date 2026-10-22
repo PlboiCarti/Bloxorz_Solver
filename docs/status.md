@@ -3,7 +3,7 @@
 > **Role: Status.** Sức khoẻ hiện tại, blocker, và delete-zone.
 > Không chứa cấu trúc (xem `docs/index.md`) hay lịch sử (xem `docs/CHANGELOG.md`).
 >
-> Cập nhật lần cuối: **2026-10-20**.
+> Cập nhật lần cuối: **2026-10-22**.
 
 ## 1. Sức khoẻ
 
@@ -15,9 +15,9 @@
 | GUI (TV5)                 | INTEGRATED — `gui/index.html` dùng Three.js và gọi API để chuyển trạng thái, solve/replay |
 | Entrypoint                | `main.py` vẫn rỗng; chạy GUI/API bằng `python server.py`                   |
 | Experiments               | NOT IMPLEMENTED — `experiments/` chưa có benchmark chạy được               |
-| Automated checks          | NOT CONFIGURED — không có `tests/`, `pyproject.toml`, `uv.lock` hoặc CI workflow |
+| Automated checks          | CONFIGURED — `.github/workflows/ci.yml` chạy syntax/import smoke check; chưa có `tests/` |
 
-- Chưa chạy test hoặc khởi chạy server trong lượt cập nhật này.
+- Chưa có test suite; CI chỉ chạy syntax/import smoke check. Server chưa được khởi chạy trong lượt cập nhật này.
 - A* mặc định dùng H2 split-aware; admissibility/consistency cần được đối chiếu với semantics cuối cùng trước khi công bố bảo đảm tối ưu.
 - Cost hiện tại là `stand_roll=1.5`, `lie_roll=1.0`, `switch_cube=0.1`; `bridge_cross_penalty=0.3` chưa được dùng. Đây là hành vi code hiện tại, chưa phải quyết định cost cuối cùng của nhóm.
 
@@ -27,7 +27,7 @@
 | -------------------------------------- | ------------------------------------- | --------------------------------------------------- |
 | H2 admissibility/consistency           | Chưa có xác nhận bằng kiểm tra đối chiếu | Không tuyên bố A* tối ưu đến khi xác nhận với cost và transition cuối |
 | Cost semantics                         | Cần thống nhất trong nhóm             | `docs/api.md` §6.2; `bridge_cross_penalty` hiện chưa áp dụng |
-| Automated validation                  | Checkout chưa có test suite/CI         | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu |
+| Automated validation                  | Checkout chưa có test suite            | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu; CI hiện chỉ là smoke check |
 | `experiments/`                         | Chưa có benchmark chạy được            | Hoàn thiện benchmark cold/warm và ghi lại metric solver |
 | `main.py`                              | Chưa phải entrypoint                   | Dùng `python server.py` để chạy GUI cùng API          |
 

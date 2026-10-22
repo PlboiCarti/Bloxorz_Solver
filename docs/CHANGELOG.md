@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-22
+
+- Đồng bộ tài liệu với GUI hiện tại: bảng `DI CHUYỂN` rộng 250px trên desktop và 210px trên màn hình hẹp; bốn nút hướng đã được bỏ, giữ điều khiển bằng bàn phím và vuốt.
+- Thêm `.github/workflows/ci.yml` để branch `gui_v2` có check status tự động cho syntax và import smoke check.
+- Thêm `BENCHMARK_LEVELS.md` với kết quả chạy 11 màn bằng BFS, DFS, UCS và A*.
+
 ## 2026-10-21
 
 - Tăng chữ metrics lời giải trong `DI CHUYỂN` từ 8px lên 12px, và 7px lên 11px ở cửa sổ thấp; giảm khoảng cách lưới trong chế độ cửa sổ thấp để giữ bảng gọn. Cập nhật README. Chưa chạy browser/test.
