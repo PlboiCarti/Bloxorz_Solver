@@ -1,0 +1,185 @@
+{
+  "name": "level15 - remote split coordination",
+  "grid": [
+    ".......###..###",
+    "....#BB###BBx##",
+    "##BB#..###..###",
+    "#####...o......",
+    "##.............",
+    ".#.....P.......",
+    ".#.....#.......",
+    "###...###..o##.",
+    "#S#######BB#G#.",
+    "###...###..o##."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        1,
+        5
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        6
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        1,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        1,
+        11
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C1",
+      "cell": [
+        2,
+        2
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C2",
+      "cell": [
+        2,
+        3
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "D1",
+      "cell": [
+        8,
+        9
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "D2",
+      "cell": [
+        8,
+        10
+      ],
+      "initial": "open"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        1,
+        12
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "A2",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "C1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "C2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        3,
+        8
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "A2",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        7,
+        11
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "D1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        9,
+        11
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "D1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "D2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        7
+      ],
+      "type": "split",
+      "targets": [],
+      "split_cells": [
+        [
+          1,
+          13
+        ],
+        [
+          8,
+          1
+        ]
+      ]
+    }
+  ]
+}
