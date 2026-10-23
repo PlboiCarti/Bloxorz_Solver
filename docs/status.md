@@ -3,7 +3,7 @@
 > **Role: Status.** Sức khoẻ hiện tại, blocker, và delete-zone.
 > Không chứa cấu trúc (xem `docs/index.md`) hay lịch sử (xem `docs/CHANGELOG.md`).
 >
-> Cập nhật lần cuối: **2026-10-22**.
+> Cập nhật lần cuối: **2026-10-23**.
 
 ## 1. Sức khoẻ
 
@@ -14,10 +14,10 @@
 | HTTP adapter              | IMPLEMENTED — `server.py` (FastAPI): `/levels`, `/levels/{name}`, `/transition`, `/solve` |
 | GUI (TV5)                 | INTEGRATED — `gui/index.html` dùng Three.js và gọi API để chuyển trạng thái, solve/replay |
 | Entrypoint                | `main.py` vẫn rỗng; chạy GUI/API bằng `python server.py`                   |
-| Experiments               | IMPLEMENTED — test set cố định 100 mẫu; benchmark BFS/DFS/UCS/A* đã chạy 400 lượt |
+| Experiments               | VERIFIED — 20 level GUI; benchmark BFS/DFS/UCS/A* chạy 80 lượt, 80/80 solved |
 | Automated checks          | CONFIGURED — `.github/workflows/ci.yml` chạy syntax/import smoke check; chưa có `tests/` |
 
-- Chưa có test suite; CI chỉ chạy syntax/import smoke check. Server chưa được khởi chạy trong lượt cập nhật này.
+- Chưa có test suite; CI chỉ chạy syntax/import smoke check. Benchmark và import/syntax check đã chạy thành công trong lượt cập nhật này.
 - A* mặc định dùng H2 split-aware; admissibility/consistency cần được đối chiếu với semantics cuối cùng trước khi công bố bảo đảm tối ưu.
 - Cost hiện tại là `stand_roll=1.5`, `lie_roll=1.0`, `switch_cube=0.1`; `bridge_cross_penalty=0.3` chưa được dùng. Đây là hành vi code hiện tại, chưa phải quyết định cost cuối cùng của nhóm.
 
@@ -28,7 +28,7 @@
 | H2 admissibility/consistency           | Chưa có xác nhận bằng kiểm tra đối chiếu | Không tuyên bố A* tối ưu đến khi xác nhận với cost và transition cuối |
 | Cost semantics                         | Cần thống nhất trong nhóm             | `docs/api.md` §6.2; `bridge_cross_penalty` hiện chưa áp dụng |
 | Automated validation                  | Checkout chưa có test suite            | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu; CI hiện chỉ là smoke check |
-| `experiments/`                         | Bộ benchmark cơ bản đã chạy             | Phân tích số liệu, biểu đồ và cân nhắc benchmark cold/warm H0/H1/H2 |
+| `experiments/`                         | Benchmark 20 level GUI đã chạy          | Phân tích số liệu, bảng/biểu đồ và thảo luận trong report |
 | `main.py`                              | Chưa phải entrypoint                   | Dùng `python server.py` để chạy GUI cùng API          |
 
 ## 3. Delete-zone

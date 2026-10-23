@@ -1,99 +1,140 @@
-"""Run BFS, DFS, UCS, and A* on the fixed test set and save CSV/JSON results."""
+"""Benchmark the four required solvers on the levels available in the GUI."""
+
 from __future__ import annotations
 
 import argparse
 import csv
 import json
 import platform
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from game import Engine, State, load_board, parse_board
 from experiments.benchmark import SOLVERS, run_with_timeout
+from game import Board, Engine, load_board
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
-DEFAULT_DATASET = EXPERIMENTS_DIR / "test_set.json"
+LEVELS_DIR = ROOT / "levels"
 DEFAULT_RESULTS = EXPERIMENTS_DIR / "results.csv"
+
 CSV_FIELDS = [
-    "run_id", "case_id", "group", "difficulty", "source_level", "algorithm",
-    "status", "search_time_seconds", "peak_memory_mb", "expanded_nodes",
-    "solution_length", "total_cost", "preprocessing_time_seconds", "error",
+    "run_id",
+    "case_id",
+    "group",
+    "difficulty",
+    "source_level",
+    "algorithm",
+    "status",
+    "search_time_seconds",
+    "peak_memory_mb",
+    "expanded_nodes",
+    "solution_length",
+    "total_cost",
+    "preprocessing_time_seconds",
+    "error",
 ]
 
 
-def load_dataset(path: Path) -> dict[str, Any]:
-    dataset = json.loads(path.read_text(encoding="utf-8"))
-    cases = dataset.get("cases")
-    if not isinstance(cases, list) or len(cases) < 100:
-        raise ValueError(
-            f"Test set phải có ít nhất 100 mẫu; hiện có {len(cases) if isinstance(cases, list) else 0}."
-        )
-    ids = [case.get("case_id") for case in cases]
-    if len(ids) != len(set(ids)):
-        raise ValueError("case_id bị trùng trong test set.")
-    return dataset
+def discover_gui_levels() -> list[Path]:
+    """Return all playable GUI levels in natural numeric order."""
+    paths = list(LEVELS_DIR.glob("level*.json"))
+
+    def level_number(path: Path) -> int:
+        match = re.fullmatch(r"level(\d+)\.json", path.name, re.IGNORECASE)
+        if match is None:
+            raise ValueError(f"Invalid GUI level filename: {path.name}")
+        return int(match.group(1))
+
+    paths.sort(key=level_number)
+    if not paths:
+        raise ValueError(f"No GUI levels found in {LEVELS_DIR}")
+    return paths
+
+
+def classify_level(board: Board) -> str:
+    """Group levels by the advanced mechanics described in the assignment."""
+    has_fragile = any("F" in row for row in board.grid_raw)
+    has_switches_or_bridges = bool(board.bridges or board.switches)
+    if has_fragile and has_switches_or_bridges:
+        return "combined"
+    if has_fragile:
+        return "fragile"
+    if has_switches_or_bridges:
+        return "switches_bridges"
+    return "basic"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
-    parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS)
-    parser.add_argument("--timeout", type=float, default=15.0, help="Timeout per solver/case in seconds.")
-    parser.add_argument("--algorithms", nargs="+", choices=list(SOLVERS), default=list(SOLVERS))
-    parser.add_argument("--repeat", type=int, default=1, help="Number of repetitions per solver/case.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_RESULTS,
+        help="CSV output path.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=15.0,
+        help="Timeout per solver and GUI level in seconds.",
+    )
+    parser.add_argument(
+        "--algorithms",
+        nargs="+",
+        choices=list(SOLVERS),
+        default=list(SOLVERS),
+        help="Algorithms to benchmark.",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="Number of repetitions per GUI level and algorithm.",
+    )
     args = parser.parse_args()
     if args.timeout <= 0 or args.repeat < 1:
-        parser.error("--timeout phải > 0 và --repeat phải >= 1.")
+        parser.error("--timeout must be > 0 and --repeat must be >= 1.")
 
-    dataset = load_dataset(args.dataset)
-    cases = dataset["cases"]
+    level_paths = discover_gui_levels()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-    total = len(cases) * len(args.algorithms) * args.repeat
+    total = len(level_paths) * len(args.algorithms) * args.repeat
     done = 0
-    board_cache: dict[str, Any] = {}
     for repeat_index in range(1, args.repeat + 1):
-        for case in cases:
-            level_name = case["source_level"]
-            if "board" in case:
-                # Independent benchmark cases embed their complete board definition.
-                # Legacy datasets without an embedded board can still reference levels/.
-                board_key = case.get("case_id", level_name)
-                if board_key not in board_cache:
-                    board_cache[board_key] = parse_board(case["board"])
-                board = board_cache[board_key]
-            else:
-                if level_name not in board_cache:
-                    board_cache[level_name] = load_board(ROOT / "levels" / level_name)
-                board = board_cache[level_name]
+        for level_path in level_paths:
+            board = load_board(level_path)
             engine = Engine(board)
-            initial_state = State.from_dict(case["initial_state"])
+            initial_state = engine.get_initial_state()
+            case_id = level_path.stem
+            group = classify_level(board)
+
             for algorithm in args.algorithms:
                 done += 1
                 print(
-                    f"[{done}/{total}] {case['case_id']} ({case['group']}) / {algorithm} "
+                    f"[{done}/{total}] {case_id} ({group}) / {algorithm} "
                     f"/ repeat {repeat_index}",
                     flush=True,
                 )
                 metrics = run_with_timeout(
                     SOLVERS[algorithm], initial_state, engine, args.timeout
                 )
-                rows.append({
-                    "run_id": run_id,
-                    "case_id": case["case_id"],
-                    "group": case["group"],
-                    "difficulty": case["difficulty"],
-                    "source_level": level_name,
-                    "algorithm": algorithm,
-                    **metrics,
-                })
+                rows.append(
+                    {
+                        "run_id": run_id,
+                        "case_id": case_id,
+                        "group": group,
+                        "difficulty": "",
+                        "source_level": level_path.name,
+                        "algorithm": algorithm,
+                        **metrics,
+                    }
+                )
 
-    # Mỗi lần chạy tạo file kết quả riêng, không âm thầm trộn dữ liệu cũ.
     with args.output.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
@@ -102,9 +143,9 @@ def main() -> None:
     metadata = {
         "run_id": run_id,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "dataset_path": str(args.dataset),
-        "dataset_version": dataset.get("dataset_version"),
-        "case_count": len(cases),
+        "levels_dir": str(LEVELS_DIR),
+        "levels": [path.name for path in level_paths],
+        "case_count": len(level_paths),
         "algorithms": args.algorithms,
         "repeat": args.repeat,
         "timeout_seconds_per_solver_case": args.timeout,
@@ -112,12 +153,10 @@ def main() -> None:
         "platform": platform.platform(),
         "result_csv": str(args.output),
         "metric_notes": {
-            "search_time_seconds": "Solver-reported search time in seconds; A* excludes heuristic preprocessing.",
-            "preprocessing_time_seconds": "A* heuristic build time, recorded separately.",
-            "peak_memory_mb": "Peak tracemalloc memory in decimal MB as reported by the solver.",
-            "expanded_nodes": "Solver's expanded-state counter; goal state is not counted.",
-            "solution_length": "Number of actions in the returned path; blank when no solution.",
-            "total_cost": "Sum of Engine.step_cost along the returned path; blank when no solution.",
+            "search_time_seconds": "Solver-reported search time in seconds.",
+            "peak_memory_mb": "Peak memory measured with tracemalloc in MB.",
+            "expanded_nodes": "Number of expanded states; the goal state is not counted.",
+            "solution_length": "Number of actions in the returned solution path.",
         },
     }
     metadata_path = args.output.with_name(args.output.stem + "_metadata.json")
@@ -127,10 +166,14 @@ def main() -> None:
     )
 
     solved = sum(row["status"] == "solved" for row in rows)
+    unsolved = sum(row["status"] == "unsolved" for row in rows)
     timeouts = sum(row["status"] == "timeout" for row in rows)
     errors = sum(row["status"] == "error" for row in rows)
     print("\nBenchmark complete.")
-    print(f"Rows: {len(rows)} | solved: {solved} | timeout: {timeouts} | errors: {errors}")
+    print(
+        f"Rows: {len(rows)} | solved: {solved} | unsolved: {unsolved} "
+        f"| timeout: {timeouts} | errors: {errors}"
+    )
     print(f"CSV: {args.output}")
     print(f"Metadata: {metadata_path}")
 

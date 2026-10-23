@@ -11,7 +11,7 @@ Backend đã có:
 - `solvers/`: BFS, DFS, UCS, A* và `SearchResult`;
 - `solvers/heuristics/h2.py`: H2 orientation-aware, cost-aware và
   split-pair-aware;
-- `levels/level0.json` để kiểm tra ô đặc biệt và `levels/level1.json` đến `levels/level10.json`;
+- `levels/level1.json` đến `levels/level20.json`, gồm các màn core và advanced mechanics;
 - `server.py`: HTTP adapter cho level, transition và solve;
 - Checkout hiện tại không có thư mục `tests/`; checklist contract bên dưới là
   những việc cần kiểm tra, không phải kết quả test đã xác nhận.
@@ -421,7 +421,7 @@ split/bridge; nó chỉ điều phối Engine và hiển thị kết quả.
 
 ## 10. Checklist nghiệm thu
 
-- [ ] Chọn và load được cả 10 level.
+- [ ] Chọn và load được cả 20 level.
 - [ ] Vẽ đúng `#`, `.`, `S`, `G`, `F`, `B`, `o`, `x`, `P`.
 - [ ] Điều khiển được bốn hướng và restart.
 - [ ] Hiển thị đúng standing/horizontal/vertical.
@@ -433,7 +433,7 @@ split/bridge; nó chỉ điều phối Engine và hiển thị kết quả.
 - [ ] Replay path tuần tự qua `POST /transition`, không tự mô phỏng state.
 - [ ] Hiển thị đủ search time, memory, expanded nodes, solution length và cost.
 - [ ] Solver không khóa event loop/UI thread.
-- [ ] Kiểm tra tối thiểu level 8, 9 và 10 trước khi quay demo.
+- [ ] Kiểm tra tối thiểu các level 8, 9, 10, 18 và 20 trước khi quay demo.
 
 ## 11. Những điều không được phá vỡ
 

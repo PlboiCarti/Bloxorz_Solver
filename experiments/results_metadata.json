@@ -1,9 +1,30 @@
 {
-  "run_id": "20261022T142018Z",
-  "timestamp_utc": "2026-10-22T14:20:42.435441+00:00",
-  "dataset_path": "D:\\Project_CSAI\\Bloxorz_Solver\\experiments\\test_set.json",
-  "dataset_version": 2,
-  "case_count": 100,
+  "run_id": "20261023T154554Z",
+  "timestamp_utc": "2026-10-23T15:46:42.888052+00:00",
+  "levels_dir": "D:\\BloxorzProject\\levels",
+  "levels": [
+    "level1.json",
+    "level2.json",
+    "level3.json",
+    "level4.json",
+    "level5.json",
+    "level6.json",
+    "level7.json",
+    "level8.json",
+    "level9.json",
+    "level10.json",
+    "level11.json",
+    "level12.json",
+    "level13.json",
+    "level14.json",
+    "level15.json",
+    "level16.json",
+    "level17.json",
+    "level18.json",
+    "level19.json",
+    "level20.json"
+  ],
+  "case_count": 20,
   "algorithms": [
     "BFS",
     "DFS",
@@ -12,15 +33,13 @@
   ],
   "repeat": 1,
   "timeout_seconds_per_solver_case": 15.0,
-  "python_version": "3.12.13 (main, Jun 23 2026, 15:23:43) [MSC v.1944 64 bit (AMD64)]",
-  "platform": "Windows-10-10.0.19045-SP0",
-  "result_csv": "experiments\\results.csv",
+  "python_version": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "result_csv": "D:\\BloxorzProject\\experiments\\results.csv",
   "metric_notes": {
-    "search_time_seconds": "Solver-reported search time in seconds; A* excludes heuristic preprocessing.",
-    "preprocessing_time_seconds": "A* heuristic build time, recorded separately.",
-    "peak_memory_mb": "Peak tracemalloc memory in decimal MB as reported by the solver.",
-    "expanded_nodes": "Solver's expanded-state counter; goal state is not counted.",
-    "solution_length": "Number of actions in the returned path; blank when no solution.",
-    "total_cost": "Sum of Engine.step_cost along the returned path; blank when no solution."
+    "search_time_seconds": "Solver-reported search time in seconds.",
+    "peak_memory_mb": "Peak memory measured with tracemalloc in MB.",
+    "expanded_nodes": "Number of expanded states; the goal state is not counted.",
+    "solution_length": "Number of actions in the returned solution path."
   }
 }
