@@ -11,7 +11,7 @@
 2. **Solver Isolation:** Search algorithms interact with the game through the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`). A* heuristics additionally receive an immutable `HeuristicContext` snapshot from Engine; they do not inspect mutable board/mechanics internals.
 3. **GUI Purity:** The GUI never decides game transitions. The browser sends actions through `server.py` over HTTP; the adapter calls `Engine.transition()` and returns the authoritative result for rendering.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
-5. **Uniform Solver Contract:** All search algorithms (BFS, DFS/IDS, UCS, A\*) return the identical `SearchResult` data structure.
+5. **Uniform Solver Contract:** All search algorithms (BFS, DFS, UCS, A\*) return the identical `SearchResult` data structure.
 
 ---
 
@@ -46,9 +46,15 @@ class Orientation(Enum):
 ### 2.4 Public Package Exports
 
 Consumers import from the top-level `game` package (defined in `game/__init__.py`):
-`Action`, `Board`, `Bridge`, `BridgeStates`, `Cell`, `Engine`, `Orientation`,
-`State`, `Switch`, `SwitchTarget`, `TileType`, `TransitionResult`,
+`Action`, `Board`, `Bridge`, `BridgeMode`, `BridgeStates`, `Cell`, `CostConfig`,
+`DEFAULT_COST`, `Engine`, `HeuristicContext`, `Orientation`, `SplitSwitchContext`,
+`State`, `Switch`, `SwitchTarget`, `SwitchType`, `TileType`, `TransitionResult`,
 `TransitionStatus`, `load_board`, `occupied_cells`, `parse_board`.
+
+Solvers are imported from `solvers` (`solvers/__init__.py`): `solve_bfs`,
+`solve_dfs`, `solve_ucs`, `solve_astar`, `SearchResult`, `build_h1`, `build_h2`,
+`H2Heuristic`, plus the shared helpers `BaseSolver`, `BFSSolver`, `DFSSolver`,
+`ParentMap`, `finalize`, `path_cost`, `reconstruct_path`.
 
 ---
 
@@ -108,8 +114,9 @@ For serialization and communication with the Three.js GUI:
 
 ```python
 class Engine:
-    def __init__(self, board: Board) -> None: ...
+    def __init__(self, board: Board, cost_config: CostConfig = DEFAULT_COST) -> None: ...
     def get_initial_state(self) -> State: ...
+    def get_heuristic_context(self) -> HeuristicContext: ...
     def legal_actions(self, state: State) -> list[Action]: ...
     def transition(self, state: State, action: Action) -> TransitionResult: ...
     def is_goal(self, state: State) -> bool: ...
@@ -165,6 +172,11 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 - Current default (`game/cost_config.py`): `1.5` for a roll from STANDING, `1.0` for a roll while lying, and `0.1` for `SWITCH_CUBE`.
 - Provides edge weight / step cost for UCS and A\*.
 
+#### `get_heuristic_context() -> HeuristicContext`
+
+- Read-only snapshot for heuristics (`game/heuristic_context.py`): `support_cells` (every non-VOID cell, i.e. relaxed support), `goal`, `split_switches` (`SplitSwitchContext(cell, split_cells)`), `stand_roll`, `lie_roll`.
+- A\* builds H2 from it; solvers never read `board`/`mechanics` directly.
+
 ### 4.2 Board & Level Loader (`game/board.py`)
 
 `Engine` is constructed with an immutable `Board` (frozen dataclass) and exposes it as `engine.board`.
@@ -210,12 +222,12 @@ class Switch:
 - `in_bounds(cell: Cell) -> bool`
 - `tile_at(cell: Cell) -> TileType` — raises `IndexError` if `cell` is out of bounds.
 
-`TileType` (defined in `game/tiles.py`): `FLOOR` (`#`), `VOID` (`.`), `GOAL` (`G`), `FRAGILE` (`F`), `BRIDGE` (`B`), `SOFT_SWITCH` (`o`), `HEAVY_SWITCH` (`x`), `SPLIT_SWITCH` (`P`). The start char `S` maps to `FLOOR`.
+`TileType` (defined in `game/board.py`): `FLOOR` (`#`), `VOID` (`.`), `GOAL` (`G`), `FRAGILE` (`F`), `BRIDGE` (`B`), `SOFT_SWITCH` (`o`), `HEAVY_SWITCH` (`x`), `SPLIT_SWITCH` (`P`). The start char `S` maps to `FLOOR`.
 
 Loader functions:
 
 - `load_board(path: str | Path) -> Board` — reads and validates a JSON level file.
-- `parse_board(data: dict) -> Board` — validates level data from a dict (used by tests).
+- `parse_board(data: dict) -> Board` — validates level data from a dict.
 
 `parse_board` validates grid shape/symbols and bridge/switch metadata against the grid: each `B` tile and each `o`/`x`/`P` tile must have exactly one matching metadata entry; bridge IDs must be unique; bridge references and target modes must be valid; and split destinations must be distinct in-bounds cells. Loader errors:
 
@@ -337,11 +349,10 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 
 `Engine.transition()` owns the rules without changing the public wire API. The implementation separates geometry, support checks, and switch effects:
 
-- `Engine._roll(position, orientation, action) -> tuple[Cell, Orientation] | None`: Pure geometry roll table for a standard block.
-- `Engine._move_split_cube(state, action) -> tuple[State, str | None]`: Moves the active cube or reports an illegal collision/action.
-- `support_failure(board, cells, orientation, bridge_states, split_mode) -> str | None` in `game/tiles.py`: Checks bounds and tile support.
-- `activated_switches(board, state)` and `update_bridge_states(board, current, activated)` in `game/switches.py`: Resolve switch activation and apply bridge targets.
-- `Engine._merge_if_adjacent(state) -> State`: Merges adjacent split cubes back into the standard block.
+- `roll_geometry(position, orientation, action)` / `pose_cells(...)` in `game/geometry.py` (wrapped by `Engine._roll(state, action)`): pure roll table for a standard block; no support check.
+- `move_active_cube`, `switch_active_cube`, `make_split_state`, `try_merge` in `game/split_block.py`: split-mode moves (`None` on cube collision), active-cube swap, split teleport, and merge of adjacent cubes.
+- `support_failure(board, mechanics, cells, bridge_states, *, full_block_standing)` in `game/tiles.py` (wrapped by `Engine._support_failure`): checks bounds and tile support and returns the fall reason.
+- `build_mechanics(board)`, `is_triggered(switch, *, full_block_standing)` and `apply_targets(bridge_states, targets)` in `game/switches.py`: validate bridge/switch metadata, decide activation, and apply bridge targets (called from `Engine._apply_tile_effects`).
 
 The engine applies switch effects deterministically: it inspects the resulting block's occupied cells in canonical `occupied_cells` order (in split mode, only the active cube's cell), then applies each switch's targets in their listed order. This also defines the order when multiple switches update the same bridge.
 
@@ -353,9 +364,9 @@ The engine applies switch effects deterministically: it inspects the resulting b
 
 ### 6.7 Stream Dependency Summary
 
-| Stream                   | Can rely on now                                                       | Must wait for                        |
+| Stream                   | Can rely on now                                                       | Still open                           |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
-| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | —                                    |
-| TV3 (BFS/DFS)            | Solver interface and stateless `/solve` request contract              | Solver modules and level set         |
-| TV4 (UCS/A\*)            | Solver modules and current weighted cost implementation               | Final team confirmation of costs and H2 guarantees |
-| TV5 (GUI/integration)    | GUI, same-origin server, board/state/transition wire schema           | Solver outputs and final cost values |
+| TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | Automated tests                      |
+| TV3 (BFS/DFS)            | `solvers/bfs.py`, `solvers/dfs.py`, 20 GUI levels, benchmark runner   | Automated tests                      |
+| TV4 (UCS/A\*)            | `solvers/ucs.py`, `solvers/astar.py`, H1/H2, weighted cost            | Team confirmation of costs and H2 guarantees |
+| TV5 (GUI/integration)    | GUI, same-origin server, `/solve` + replay, board/state/transition wire schema | Final cost values             |

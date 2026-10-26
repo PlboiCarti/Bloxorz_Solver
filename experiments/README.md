@@ -55,5 +55,27 @@ Runner nhóm level theo mechanics để mô tả bộ test trong report:
 - `switches_bridges`: có bridge hoặc switch;
 - `combined`: có fragile cùng bridge/switch.
 
+| Nhóm | Level |
+| --- | --- |
+| `basic` | `level1`-`level3` |
+| `fragile` | `level4`, `level5`, `level12` |
+| `switches_bridges` | `level6`-`level9`, `level11`, `level13`-`level17`, `level19` |
+| `combined` | `level10`, `level18`, `level20` |
+
 `test_set.json` custom đã được loại khỏi project. Benchmark hiện tại chỉ lấy dữ
 liệu từ các level GUI.
+
+## Kết quả gần nhất
+
+Lần chạy `20261023T154554Z` (xem `results_metadata.json`): `80/80 solved`,
+không timeout, không error. Trung bình theo thuật toán:
+
+| Thuật toán | Số lượt | Search time (s) | Peak memory (MB) | Expanded nodes | Solution length |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| BFS | 20 | 0.863338 | 0.260370 | 1312.05 | 41.65 |
+| DFS | 20 | 0.206915 | 0.095740 | 335.70 | 179.45 |
+| UCS | 20 | 0.875544 | 0.325079 | 1154.35 | 41.65 |
+| A* | 20 | 0.353074 | 0.284946 | 392.45 | 41.65 |
+
+Giá trị chi tiết theo từng level nằm trong `results.csv`. Thời gian và memory
+phụ thuộc môi trường chạy; khi chạy lại, cập nhật bảng này cùng CSV/metadata.

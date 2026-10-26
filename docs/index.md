@@ -19,13 +19,15 @@
 
 | Cần                                          | Đọc tại                            | Verify bằng                              |
 | -------------------------------------------- | ---------------------------------- | ---------------------------------------- |
-| API contract Engine (authoritative)          | `api.md`                      | `game/engine.py`, `game/__init__.py`      |
-| Contract GUI / integration (wire format)     | `gui_api.md`                  | `server.py`, `gui/index.html`             |
-| Ranh giới module / luồng dữ liệu             | `Mô tả công việc.md`          | `game/`, `solvers/`, `gui/`              |
-| Yêu cầu môn học / rubric                     | `AI - Project 1.docx`         | —                                        |
-| Trạng thái hiện tại, blocker, delete-zone    | `status.md`                   | `git status`, inspect code and API docs    |
-| Lịch sử thay đổi                             | `CHANGELOG.md`                | `git diff`, `git log`                     |
-| Vai trò & lịch gốc (đã lịch sử)              | `plan.md`                     | `git log`                                |
+| Cài đặt, chạy GUI, tổng quan                 | `../README.md`                     | `python server.py`                       |
+| API contract Engine/solver (authoritative)   | `api.md`                           | `game/`, `solvers/__init__.py`           |
+| Contract GUI/HTTP + luồng tích hợp GUI       | `gui_api.md`                       | `server.py`, `gui/index.html`            |
+| Phân công, ranh giới module, lịch gốc        | `Mô tả công việc.md`               | `game/`, `solvers/`, `gui/`              |
+| Benchmark: cách chạy và kết quả gần nhất     | `../experiments/README.md`         | `experiments/results.csv`                |
+| Nghiên cứu thiết kế H2 (tham khảo, chưa phải chứng minh cho code) | `deep-research-report.md`, `h2 heuristic research.md` | `solvers/heuristics/h2.py` |
+| Yêu cầu môn học / rubric                     | `../AI - Project 1 (đã fix).pdf`   | —                                        |
+| Trạng thái hiện tại, blocker, delete-zone    | `status.md`                        | `git status`, inspect code and API docs  |
+| Lịch sử thay đổi                             | `CHANGELOG.md`                     | `git diff`, `git log`                    |
 
 ## 3. Module map (ownership)
 
@@ -34,7 +36,7 @@
 | Game Engine | TV1/2  | `game/`      | IMPLEMENTED (core + advanced mechanics)           |
 | AI Solver   | TV3/4  | `solvers/`   | IMPLEMENTED (BFS/DFS/UCS/A*)                      |
 | GUI         | TV5    | `gui/`       | INTEGRATED (`index.html`); Python GUI stubs chưa dùng |
-| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark tự động chạy trên 20 level GUI; `main.py` vẫn rỗng |
+| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark chạy trên 20 level GUI; `main.py` vẫn rỗng |
 
 Chi tiết ranh giới code: `Agents.md` §"Architecture rules".
 
@@ -44,4 +46,4 @@ Chi tiết ranh giới code: `Agents.md` §"Architecture rules".
 - Contract GUI/integration: `gui_api.md`
 - Log thay đổi: `CHANGELOG.md`
 - Status + delete-zone: `status.md`
-- Hướng dẫn luồng UI/API: `Hướng dẫn UI.md`
+- Benchmark: `../experiments/README.md`

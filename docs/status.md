@@ -3,7 +3,7 @@
 > **Role: Status.** Sức khoẻ hiện tại, blocker, và delete-zone.
 > Không chứa cấu trúc (xem `docs/index.md`) hay lịch sử (xem `docs/CHANGELOG.md`).
 >
-> Cập nhật lần cuối: **2026-10-23**.
+> Cập nhật lần cuối: **2026-10-26**.
 
 ## 1. Sức khoẻ
 
@@ -40,6 +40,11 @@
 | `src/` layout                       | Chuyển sang top-level package          | `game/`, `solvers/`, `gui/` (không `src/`) | Không bao giờ reintroduce `src/` |
 | `transition(...) -> State \| None`  | Thay bằng contract mới                 | `TransitionResult` (`TransitionStatus.OK/FALL/ILLEGAL`) | Chỉ dùng `TransitionResult` |
 | `game/__init__.py` export list cũ   | Thiếu `TransitionResult`/`TransitionStatus` | `game/__init__.py` hiện tại        | Sửa qua `game/__init__.py` duy nhất |
+| `docs/API_CONTRACT.md`              | Bản sao cũ của `gui_api.md`            | `docs/gui_api.md`                     | Không tạo lại bản sao contract    |
+| `docs/Hướng dẫn UI.md`              | Trùng `gui_api.md` + `api.md`          | `docs/gui_api.md` §5–§8               | —                               |
+| `docs/plan.md`                      | Lịch đã lịch sử, trùng phân công      | Phụ lục của `docs/Mô tả công việc.md` | —                               |
+| `BENCHMARK_LEVELS.md`               | Trùng phần benchmark                   | `experiments/README.md` §Kết quả gần nhất | —                           |
+| `web/src/*.js` layout               | Chưa từng được tạo                     | Inline module trong `gui/index.html`  | Chỉ khi tách GUI thành module thật |
 
 ## 4. Nguyên tắc cần nhớ khi cập nhật status
 

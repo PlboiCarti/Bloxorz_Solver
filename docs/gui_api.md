@@ -1,6 +1,6 @@
 # Bloxorz GUI & Integration — API Contract & Architecture Specifications
 
-> **Target Audience:** TV5 (GUI & Integration), TV1/TV2 (Core & Advanced Engine), TV3/TV4 (AI Solvers).  
+> **Target Audience:** TV5 (GUI & Integration), TV1/TV2 (Core & Advanced Engine), TV3/TV4 (AI Solvers).
 > **Status:** GUI/backend wire contract. TV2 advanced-tile semantics and the `TransitionResult` response are confirmed. `server.py` exposes the HTTP adapter; the Python engine API is documented in `docs/api.md`.
 
 ---
@@ -30,19 +30,15 @@
 ```text
 game/                   # Python engine (owned by TV1/TV2)
 solvers/                # AI solvers (owned by TV3/TV4)
-web/
-├── index.html
-└── src/
-    ├── main.js         # entrypoint: wires UI, controller, renderer
-    ├── controller.js   # state machine (modes), replay logic, keyboard input
-    ├── renderer3d.js   # Three.js scene: board tiles, block mesh, bridges, switches
-    ├── api.js          # HTTP client for the Python backend
-    └── ui.js           # control panel, replay bar, metrics panel
-server.py               # FastAPI backend at repo root (owned by TV1/TV2)
+gui/
+├── index.html          # whole web GUI: inline ES module (API adapter, Three.js scene, controller, UI)
+└── app.py, controller.py, renderer.py   # empty placeholders, not used by the web GUI
+server.py               # FastAPI adapter at repo root; serves `/`, `/assets/*` and the API
+assets/                 # textures/models served at /assets/*
 levels/                 # shared level JSON files
 ```
 
-The tree above is the target modular layout. The current GUI is consolidated in `gui/index.html` with inline JavaScript; it is owned by TV5 and uses Three.js. Algorithms and the engine remain in Python. The two sides communicate through the HTTP endpoints in §2.1, and the current server serves the GUI and `/assets/*` from the same origin.
+The GUI is a single file, `gui/index.html`, owned by TV5. Its inline script is split into marked sections (`Thin Python API adapter`, `Three.js scene and tile board`, controller/replay functions) rather than separate JS modules. Algorithms and the engine remain in Python. The two sides communicate through the HTTP endpoints in §2.1, and the server serves the GUI and `/assets/*` from the same origin.
 
 **Repository implementation note (2026-10-20):** `server.py` implements the FastAPI adapter, including `/transition` and `/solve`, and serves `gui/index.html` plus `/assets/*`. It serializes board/state data and transition results using this wire contract. BFS, DFS, UCS, and A* are registered in the server. The current GUI exposes algorithm selection, calls `/solve`, displays search metrics, and replays the returned actions through sequential `/transition` calls.
 
@@ -461,85 +457,36 @@ Rules:
 - The backend runs the solver in a worker thread so the async event loop stays responsive; the GUI `fetch` is asynchronous and the UI thread stays free (spinner + `SEARCHING` mode).
 - Unknown algorithm → `400 UNKNOWN_ALGORITHM`. The current server registers BFS, DFS, UCS, and ASTAR. The GUI submits the selected algorithm and current state to this route.
 
-### 4.4 Metrics Display Panel
+### 4.4 Metrics Display
 
-Upon receiving `SearchResult`, the GUI updates the metrics sidebar:
-
-| Metric Label | Source Field | Display Format |
-| :--- | :--- | :--- |
-| **Status** | `result.solved` | `Solved` (Green) / `No Solution` (Red) |
-| **Algorithm** | Algorithm choice | `BFS` / `DFS` / `UCS` / `A*` |
-| **Solution Length** | `result.solution_length` | Integer steps (e.g. `24 moves`) |
-| **Total Cost** | `result.total_cost` | Float / Int (e.g. `24.0`) |
-| **Execution Time** | `result.search_time` | Seconds (`{time:.4f} s` or `{time*1000:.1f} ms`) |
-| **H2 Preprocessing** | `result.preprocessing_time` | Seconds; shown separately from A* search |
-| **Memory Peak** | `result.memory_usage` | Megabytes (`{memory:.2f} MB`) |
-| **Nodes Expanded** | `result.expanded_nodes` | Integer (`{nodes:,}`) |
+The GUI validates that every numeric metric in `SearchResult` is present (`PythonEngineAPI.solve`) and writes a summary into `#solver-metrics` (solved/no solution, algorithm, solution length, cost, time, H2 preprocessing, memory, expanded nodes). Since commit `cb05ea4` this element is **hidden** by CSS (`.input-hud .solver-metrics { display: none; }`), so metrics are not shown in the `DI CHUYỂN` panel; benchmark numbers come from `experiments/` instead. The left `SOLVERS` table only shows each algorithm's readiness.
 
 ---
 
 ## 5. GUI Internal Architecture & Component Contracts (JavaScript)
 
-### 5.1 Game Controller (`web/src/controller.js`)
+All of this lives in the inline module of `gui/index.html`.
 
-Manages the gameplay state machine, user inputs, and replay coordination. It owns the session state: `currentState`, `initialState`, `history`, `path`, `replayIndex`, `mode` (§7).
+### 5.1 API adapter (`class PythonEngineAPI`)
 
-#### State Machine Modes (String Constants):
-- `"MANUAL_PLAY"`: User directly controls the block using keyboard.
-- `"SEARCHING"`: Solver is executing in the backend; UI displays a loading spinner.
-- `"REPLAYING"`: Solution path is automatically being stepped through with a timer.
-- `"REPLAY_PAUSED"`: Replay paused; user can manually step forward/backward.
-- `"WON"`: Block has reached goal; victory banner displayed.
-- `"LOST"`: Block fell; defeat message displayed with restart/undo options.
-- `"ERROR"`: Replay or transition failed; message shown with the failing step and reason.
+- `apiRequest(path, options)` is the only `fetch` wrapper; it parses the §2.2 error envelope.
+- `PythonEngineAPI` exposes level listing/loading, `transition` and `solve`; `normalizeBoard`, `fromApiState` and `toApiState` convert wire JSON to the GUI's internal shape (`x = col`, `z = row`) and back, validating bridge/switch metadata.
 
-#### Key Controller Methods:
-```javascript
-// web/src/controller.js
-export class GameController {
-    constructor(api, renderer, ui) { ... }
-    async loadLevel(levelName) { ... }      // load + reset: sets initialState, clears history
-    async restartLevel() { ... }
-    async handleAction(action) { ... }
-    undoAction() { ... }
-    async runSolver(algorithmName) { ... }
-    startReplay() { ... }
-    pauseReplay() { ... }
-    stepReplayForward() { ... }
-    stepReplayBackward() { ... }
-    jumpToStart() { ... }
-    jumpToEnd() { ... }
-    setReplaySpeed(movesPerSecond) { ... }
-}
-```
+### 5.2 Controller (top-level functions + `controllerMode`)
 
-### 5.2 Renderer (`web/src/renderer3d.js`)
+`controllerMode` is one of `"MANUAL_PLAY"`, `"SEARCHING"`, `"REPLAYING"`, `"REPLAY_PAUSED"`, `"WON"`, `"LOST"`, `"ERROR"`. Main functions:
 
-Handles the Three.js 3D scene, drawing board tiles, block meshes, bridges, switches, and animations. All positions come from state JSON; meshes interpolate between the previous and the returned state.
+| Function | Responsibility |
+| :--- | :--- |
+| `loadLevel(level)` | `GET /levels/{name}`, rebuild board, reset session |
+| `doMove(move, fromSolver)` | `POST /transition`, update history/state, animate (roll, split move, fall) |
+| `undoMove()`, `resetGame()`, `startNewGame()` | Client-side undo / restart / new game (§7) |
+| `autoSolve()` | `POST /solve` with the current state, then prepare replay |
+| `playReplay()`, `pauseReplay()`, `advanceReplay()`, `replayTo(i)`, `rewindReplay(i)` | Replay controls; forward steps go through `doMove` |
 
-```javascript
-// web/src/renderer3d.js
-export class Renderer3D {
-    constructor(container) { ... }
-    renderBoard(board, bridgeStates) { ... }
-    renderBlock(state) { ... }
-    renderFallAnimation(state, action) { ... }
-    renderVictoryAnimation() { ... }
-}
-```
+### 5.3 Rendering
 
-### 5.3 UI Components (`web/src/ui.js`)
-
-Handles the control panel, replay bar, metrics display, and status notifications.
-
-```javascript
-// web/src/ui.js
-export class UI {
-    constructor() { ... }
-    showMessage(message) { ... }
-    renderMetrics(result) { ... }
-}
-```
+`buildBoard(board)`, `updateBoardVisuals(state)`, `makeBlock(state)`, `animateRoll`, `animateSplitMove`, `animateFall`, `animateVictory` and `playBlockedFeedback` render only what the API returned; none of them decides legality.
 
 ---
 
@@ -561,12 +508,14 @@ export class UI {
 - Undo and Restart work in every mode, including `LOST` and `WON`.
 - API name `ASTAR` maps to display label `A*`.
 
-### 6.2 UI Control Panel Buttons
+### 6.2 UI Controls
 
-- **Stage Selector:** Dropdown listing available levels from `GET /levels`.
-- **Game Controls:** `New Game`, `Restart Level`, `Undo` (exact semantics in §7.1).
-- **Solver Buttons:** BFS, DFS, UCS and A*; enabled when the level/API is ready.
-- **Replay Bar and Speed Slider:** control returned-path playback; each forward step is validated through /transition.
+- **Touch:** swipe on the canvas maps to `UP`/`DOWN`/`LEFT`/`RIGHT`. There are no on-screen direction buttons.
+- **`MÀN` select:** levels from `GET /levels`.
+- **`THUẬT TOÁN` select + `▶ SOLVE`:** `BFS` / `DFS` / `UCS` / `ASTAR` (label `A*`).
+- **`NEW GAME`, `UNDO`, `↺ RESTART`:** semantics in §7.1.
+- **Replay bar** `⏮ ◀ ▶ ▶ ⏭` and **`TỐC ĐỘ`** slider (0.1–1.0 s per step, default 0.4 s): each forward step is validated through `/transition`.
+- **`SPACE · ĐỔI KHỐI`:** `SWITCH_CUBE`, enabled only in split mode.
 
 ---
 
@@ -629,6 +578,29 @@ Contract smoke tests (each test states the request and expected response; some n
 8. Solver integration check: each registered algorithm returns a schema-conform `SearchResult`; replay each solved path through `POST /transition` and verify the final state is the goal. The GUI follows this sequence; this contract check still needs to be run.
 9. Error contract (§2.2): no solution, unknown algorithm, solver not available, malformed request, unknown level, timeout — every body is JSON with `error.code`.
 10. Undo/replay: state stays in sync after each step; replay stops at the first non-`ok` step; Undo works after `fall` and after `WON`.
+11. Before recording a demo: load all 20 levels, render every tile char (`# . S G F B o x P`), and play/solve at least `level8`, `level9`, `level10`, `level18`, `level20` (split, bridges, combined mechanics).
+
+Invariants that must not break:
+
+- Coordinates stay `(row, col)`; `Action` order stays `UP`, `DOWN`, `LEFT`, `RIGHT`, `SWITCH_CUBE`.
+- `State` is immutable; never build a successor by editing coordinates — always call `Engine.transition()` (directly in Python or via `/transition`). Replay must not interpolate positions from the action list, because split, bridges and merge change state beyond plain rolling.
+- Never treat a lying block or a split state as the goal.
+- Never drop `bridge_states` from history snapshots or HTTP requests.
+
+A Python-side GUI (e.g. a desktop app in `gui/app.py`) would follow the same rules by calling the engine directly:
+
+```python
+from game import Action, Engine, TransitionStatus, load_board
+
+engine = Engine(load_board("levels/level1.json"))
+state = engine.get_initial_state()
+result = engine.transition(state, Action.RIGHT)
+if result.status is TransitionStatus.OK:
+    history.append(state)
+    state = result.state
+```
+
+Solvers block the calling thread; such a GUI must run them in a worker thread, as `server.py` does.
 
 ---
 
@@ -676,6 +648,7 @@ Kept for reference only. The legacy GUI/backend adapter that predated this contr
 
 ## Changelog
 
+- v10 (2026-10-26): merged the former `docs/API_CONTRACT.md` copy and `docs/Hướng dẫn UI.md` into this file; replaced the never-built `web/src/*.js` layout with the real `gui/index.html` structure; documented hidden solver metrics and current controls.
 - v9 (2026-10-20): documented cooperative solve cancellation and metric semantics; added `preprocessing_time` to the SearchResult wire schema.
 - v8 (2026-10-20): enabled GUI solver selection and connected /solve to replay through /transition.
 - v7 (2026-10-20): added natural level ordering and visual-only fall_state for fall animation; solver/replay UI was still disabled at that point.

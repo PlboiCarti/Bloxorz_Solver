@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-26
+
+- Rà soát tài liệu so với code và gộp các file `.md` trùng lặp: xoá `docs/API_CONTRACT.md` (bản sao cũ của `docs/gui_api.md`), gộp `docs/Hướng dẫn UI.md` vào `docs/gui_api.md`, gộp `docs/plan.md` vào phụ lục `docs/Mô tả công việc.md`, gộp `BENCHMARK_LEVELS.md` vào `experiments/README.md`. Rút gọn `Mô tả công việc.md` thành tài liệu phân công, trỏ sang `api.md`/`gui_api.md` thay vì chép lại API (bỏ cả ghi chú cũ `cost = 1`).
+- Sửa sai lệch với code: `docs/api.md` (danh sách export của `game`/`solvers`, `Engine(board, cost_config)`, `get_heuristic_context()`, `TileType` nằm ở `game/board.py`, tên helper thật trong §6.5, bỏ "DFS/IDS"); `docs/gui_api.md` (cấu trúc thật của `gui/index.html` thay cho `web/src/*.js`, metrics solver đang bị ẩn bằng CSS, điều khiển hiện tại); `docs/index.md` (PDF yêu cầu thay vì `.docx`, thêm benchmark/nghiên cứu H2); `docs/Agents.md` (vuốt thay cho nút hướng); comment trong `gui/index.html` trỏ tới `docs/gui_api.md`. README rút gọn phần benchmark và trỏ tới `experiments/README.md`.
+- Kiểm tra đã chạy: đối chiếu số liệu trung bình trong `experiments/results.csv` với bảng kết quả (khớp), grep liên kết tới các file đã xoá. Không chạy server/GUI; chỉ đổi tài liệu và một dòng comment.
+
 ## 2026-10-22
 
 - Đồng bộ tài liệu với GUI hiện tại: bảng `DI CHUYỂN` rộng 250px trên desktop và 210px trên màn hình hẹp; bốn nút hướng đã được bỏ, giữ điều khiển bằng bàn phím và vuốt.

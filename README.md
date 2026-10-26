@@ -100,14 +100,8 @@ Các metadata bridge/switch phải khớp với ký tự trong grid. `load_board
 `Engine` thực hiện validation trước khi level được dùng bởi server, GUI hoặc
 solver.
 
-Các nhóm mechanics hiện có trong 20 level:
-
-| Nhóm | Level |
-| --- | --- |
-| `basic` | `level1`-`level3` |
-| `fragile` | `level4`, `level5`, `level12` |
-| `switches_bridges` | `level6`-`level9`, `level11`, `level13`-`level17`, `level19` |
-| `combined` | `level10`, `level18`, `level20` |
+Schema đầy đủ và ví dụ: `docs/api.md` §6.3. Bảng phân nhóm mechanics của 20
+level: `experiments/README.md`.
 
 ## Solver
 
@@ -148,55 +142,23 @@ game; sau mỗi action, GUI dùng state do server trả về để cập nhật 
 
 ## Benchmark theo yêu cầu đồ án
 
-PDF yêu cầu đánh giá hiệu năng trên một bộ test cố định, dùng cùng bộ test cho
-các thuật toán và đo bốn chỉ số: search time, memory usage, expanded nodes và
-solution length. Runner hiện thực yêu cầu này trực tiếp trên các level mà GUI
-đang cung cấp.
-
-Chạy benchmark:
+PDF yêu cầu đánh giá trên một bộ test cố định, dùng chung cho mọi thuật toán và
+đo search time, memory usage, expanded nodes, solution length. Runner chạy trực
+tiếp trên 20 level GUI (20 × 4 = 80 lượt):
 
 ```powershell
 python -m experiments.run_experiments
 ```
 
-Mặc định chạy:
-
-```text
-20 level × 4 thuật toán = 80 lượt
-```
-
-Kết quả được ghi vào:
-
-```text
-experiments/results.csv
-experiments/results_metadata.json
-```
-
-Một số tùy chọn hiện có:
-
-```powershell
-python -m experiments.run_experiments --timeout 30
-python -m experiments.run_experiments --algorithms BFS "A*"
-python -m experiments.run_experiments --repeat 3
-python -m experiments.run_experiments --output experiments/results_trial.csv
-```
-
-Runner tự quét `levels/level*.json`, dùng `Engine.get_initial_state()` và không
-phụ thuộc vào `test_set.json`. Các chỉ số trong CSV cần dùng cho report là:
-
-- `search_time_seconds`
-- `peak_memory_mb`
-- `expanded_nodes`
-- `solution_length`
-
-Report cần trình bày bảng, biểu đồ và nhận xét về kết quả theo yêu cầu PDF.
+Tùy chọn, định nghĩa các cột CSV, cách nhóm level và bảng kết quả gần nhất nằm
+trong [`experiments/README.md`](experiments/README.md).
 
 ## Tài liệu liên quan
 
-- [`experiments/README.md`](experiments/README.md): cách chạy và phạm vi benchmark.
-- [`docs/api.md`](docs/api.md): contract của Engine.
-- [`docs/gui_api.md`](docs/gui_api.md): contract GUI/HTTP.
-- [`docs/Hướng dẫn UI.md`](docs/Hướng%20dẫn%20UI.md): luồng tích hợp GUI.
+- [`experiments/README.md`](experiments/README.md): cách chạy benchmark và kết quả gần nhất.
+- [`docs/index.md`](docs/index.md): bản đồ toàn bộ tài liệu.
+- [`docs/api.md`](docs/api.md): contract Python của Engine/solver.
+- [`docs/gui_api.md`](docs/gui_api.md): contract GUI/HTTP và luồng tích hợp GUI.
 - [`docs/status.md`](docs/status.md): trạng thái hiện tại và blocker.
 - [`AI - Project 1 (đã fix).pdf`](AI%20-%20Project%201%20%28đã%20fix%29.pdf): yêu cầu môn học.
 

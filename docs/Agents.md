@@ -71,7 +71,7 @@ couple rendering to HTTP details or duplicate backend rules in the UI.
 - Render the board, floor tiles, goal, and the 1x1x2 block.
 - Support standing, horizontal, and vertical block orientations.
 - Animate rolling around the correct pivot edge.
-- Support keyboard and GUI-button controls.
+- Support keyboard and touch-swipe controls (on-screen direction buttons were removed).
 - Provide New Game, Restart, manual movement, solver selection, and replay
   controls. Solver paths come from /solve; replay transitions go through Python.
 - Display backend errors and rejected moves clearly.
