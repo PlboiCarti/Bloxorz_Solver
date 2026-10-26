@@ -15,9 +15,11 @@ import heapq
 import itertools
 import math
 from collections import defaultdict, deque
+from collections.abc import Hashable, Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from time import perf_counter
+from typing import TypeVar
 
 from game.actions import Action, Orientation
 from game.geometry import pose_cells, roll_geometry
@@ -61,6 +63,7 @@ class AbstractSplitPair:
 
 
 AbstractState = AbstractPose | AbstractSplitPair
+Node = TypeVar("Node", bound=Hashable)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +75,12 @@ class H2Heuristic:
     abstract_state_count: int
     abstract_edge_count: int
 
-    def distance(self, state: State) -> float:
-        """Khoảng cách abstract d_alpha của state; ``inf`` nếu không tới được goal."""
+    def __call__(self, state: State) -> float:
+        """Khoảng cách abstract d_alpha của state; ``inf`` nghĩa là ngõ cụt đã được chứng minh.
+
+        Giữ ``inf`` (không fallback về 0) để H2 consistent; A* bỏ các state có
+        h = inf khỏi frontier (xem docs/deep-research-report.md, Mệnh đề 2).
+        """
         if state.split_mode:
             if state.cube1_position is None or state.cube2_position is None:
                 return math.inf
@@ -83,13 +90,6 @@ class H2Heuristic:
             return self.distances.get(split_pair, math.inf)
         pose = AbstractPose(state.block_position, state.orientation)
         return self.distances.get(pose, math.inf)
-
-    def __call__(self, state: State) -> float:
-        """Tra H2 cho concrete state."""
-        # Fallback inf -> 0 giữ admissible nhưng làm mất consistency tại cạnh đi
-        # vào ngõ cụt (xem docs/deep-research-report.md, mục điều chỉnh, điểm 3).
-        value = self.distance(state)
-        return 0.0 if math.isinf(value) else value
 
 
 def _valid_pose(pose: AbstractPose, context: HeuristicContext) -> bool:
@@ -147,14 +147,19 @@ def _abstract_split_state(
     return _merged_pose(pair) or pair
 
 
-def _reverse_dijkstra(
-    states: frozenset[AbstractState],
-    reverse: dict[AbstractState, list[tuple[AbstractState, float]]],
-    targets: frozenset[AbstractState],
-) -> dict[AbstractState, float]:
+def reverse_dijkstra(
+    states: Iterable[Node],
+    reverse: dict[Node, list[tuple[Node, float]]],
+    targets: Iterable[Node],
+) -> dict[Node, float]:
+    """Khoảng cách ngắn nhất từ mỗi state tới tập ``targets``; ``inf`` nếu không tới được.
+
+    ``reverse[v]`` liệt kê các cặp ``(u, cost)`` của cạnh ``u -> v``. Dùng chung
+    cho H2 và cho h* trong ``experiments/verify_heuristic.py``.
+    """
     distances = {state: math.inf for state in states}
     serial = itertools.count()
-    frontier: list[tuple[float, int, AbstractState]] = []
+    frontier: list[tuple[float, int, Node]] = []
 
     for target in targets:
         if target not in distances:
@@ -280,13 +285,18 @@ def _build_h2_cached(context: HeuristicContext) -> H2Heuristic:
     poses = _enumerate_poses(context)
     states, reverse, edge_count = _build_abstract_graph(poses, context)
     goal = AbstractPose(context.goal, Orientation.STANDING)
-    distances = _reverse_dijkstra(states, reverse, frozenset({goal}))
+    distances = reverse_dijkstra(states, reverse, (goal,))
     return H2Heuristic(
         distances=distances,
         preprocessing_seconds=perf_counter() - started,
         abstract_state_count=len(states),
         abstract_edge_count=edge_count,
     )
+
+
+def clear_h2_cache() -> None:
+    """Xoá cache H2 để lần A* kế tiếp đo lại thời gian và bộ nhớ dựng bảng."""
+    _build_h2_cached.cache_clear()
 
 
 def build_h2(context: HeuristicContext) -> H2Heuristic:

@@ -14,6 +14,7 @@ from game import Engine, State, parse_board
 from experiments.benchmark import SOLVERS, run_with_timeout
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
+ROOT = EXPERIMENTS_DIR.parent
 DEFAULT_DATASET = EXPERIMENTS_DIR / "test_set.json"
 DEFAULT_RESULTS = EXPERIMENTS_DIR / "results.csv"
 CSV_FIELDS = [
@@ -38,6 +39,14 @@ def load_dataset(path: Path) -> dict[str, Any]:
     return dataset
 
 
+def repo_relative(path: Path) -> str:
+    """Đường dẫn tương đối so với gốc repo để metadata dùng được trên máy khác."""
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
@@ -55,12 +64,14 @@ def main() -> None:
     rows: list[dict[str, Any]] = []
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
+    # Mỗi case nhúng đầy đủ board; benchmark không đọc levels/ của GUI. Engine
+    # thuần (không giữ state) nên dựng một lần và dùng lại qua mọi repeat.
+    engines = {case["case_id"]: Engine(parse_board(case["board"])) for case in cases}
     total = len(cases) * len(args.algorithms) * args.repeat
     done = 0
     for repeat_index in range(1, args.repeat + 1):
         for case in cases:
-            # Mỗi case nhúng đầy đủ board; benchmark không đọc levels/ của GUI.
-            engine = Engine(parse_board(case["board"]))
+            engine = engines[case["case_id"]]
             initial_state = State.from_dict(case["initial_state"])
             for algorithm in args.algorithms:
                 done += 1
@@ -91,7 +102,7 @@ def main() -> None:
     metadata = {
         "run_id": run_id,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "dataset_path": str(args.dataset),
+        "dataset_path": repo_relative(args.dataset),
         "dataset_version": dataset.get("dataset_version"),
         "case_count": len(cases),
         "algorithms": args.algorithms,
@@ -99,10 +110,10 @@ def main() -> None:
         "timeout_seconds_per_solver_case": args.timeout,
         "python_version": sys.version,
         "platform": platform.platform(),
-        "result_csv": str(args.output),
+        "result_csv": repo_relative(args.output),
         "metric_notes": {
             "search_time_seconds": "Solver-reported search time in seconds; A* excludes heuristic preprocessing.",
-            "preprocessing_time_seconds": "A* heuristic build time, recorded separately.",
+            "preprocessing_time_seconds": "A* H2 build time, recorded separately; the H2 cache is cleared before every run.",
             "peak_memory_mb": "Peak tracemalloc memory in decimal MB as reported by the solver.",
             "expanded_nodes": "Solver's expanded-state counter; goal state is not counted.",
             "solution_length": "Number of actions in the returned path; blank when no solution.",

@@ -24,7 +24,7 @@
 | Contract GUI/HTTP + luồng tích hợp GUI       | `gui_api.md`                       | `server.py`, `gui/index.html`            |
 | Phân công, ranh giới module, lịch gốc        | `Mô tả công việc.md`               | `game/`, `solvers/`, `gui/`              |
 | Benchmark: cách chạy và kết quả gần nhất     | `../experiments/README.md`         | `experiments/results.csv`                |
-| Nghiên cứu và chứng minh H2 (nguồn cho report; đọc mục "Điều chỉnh khi cài đặt" trước) | `deep-research-report.md` | `solvers/heuristics/h2.py` |
+| Nghiên cứu và chứng minh H2 (nguồn cho report; đọc mục "Điều chỉnh khi cài đặt" trước) | `deep-research-report.md` | `solvers/heuristics/h2.py`, `python -m experiments.verify_heuristic` |
 | Yêu cầu môn học / rubric                     | `../AI - Project 1 (đã fix).pdf`   | —                                        |
 | Trạng thái hiện tại, blocker, delete-zone    | `status.md`                        | `git status`, inspect code and API docs  |
 | Lịch sử thay đổi                             | `CHANGELOG.md`                     | `git diff`, `git log`                    |
@@ -36,7 +36,7 @@
 | Game Engine | TV1/2  | `game/`      | IMPLEMENTED (core + advanced mechanics)           |
 | AI Solver   | TV3/4  | `solvers/`   | IMPLEMENTED (BFS/DFS/UCS/A*)                      |
 | GUI         | TV5    | `gui/`       | INTEGRATED (`gui/index.html`) |
-| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark chạy trên test set cố định 120 case (100 độc lập + 20 level GUI) |
+| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark chạy trên test set cố định 120 case (100 độc lập + 20 level GUI, 5 nhóm) |
 
 Chi tiết ranh giới code: `Agents.md` §"Architecture rules".
 

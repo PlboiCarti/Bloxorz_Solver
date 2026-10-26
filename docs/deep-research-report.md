@@ -14,7 +14,7 @@
 | Variant B: lăn đứng lên `P` → \(Q(t_1,t_2)\) với cost của cú lăn đó, không có cost teleport riêng | Cạnh trong `_build_abstract_graph`; nếu ô đích của split không thuộc \(R\) thì không tạo cạnh (concrete sẽ là `fall`) |
 | Khi split, cho phép di chuyển cube nào cũng được; hai cube kề nhau thì tự ghép lại, anchor ở trên-trái | `_abstract_split_state`, `_merged_pose`, khớp với `split_block.try_merge` |
 | Chỉ sinh các cặp cube đạt được từ `split_cells`, không lấy tích Descartes | Hàng đợi `pending` |
-| Reverse search một lần, tra bảng \(O(1)\) | `_reverse_dijkstra` + `lru_cache` theo `HeuristicContext` |
+| Reverse search một lần, tra bảng \(O(1)\) | `reverse_dijkstra` + `lru_cache` theo `HeuristicContext` (benchmark gọi `clear_h2_cache()` trước mỗi lượt để đo lại preprocessing) |
 | Abstract goal duy nhất là \(N(g_r,g_c,S)\) | `AbstractPose(goal, STANDING)` |
 
 ### Chỗ code khác báo cáo
@@ -28,12 +28,12 @@
 
    Tính cost cạnh theo orientation của state **nguồn** là cần thiết: nếu chỉ đếm số bước rồi nhân với \(\min(1.5, 1.0) = 1.0\) thì heuristic vẫn an toàn nhưng yếu hơn.
 2. **Kiến trúc.** Báo cáo dùng adapter cho các repo khác (`Problem.result()`, Erroler). Repo này không có các adapter đó. Solver không đọc `engine.board`; Engine cung cấp snapshot bất biến `HeuristicContext(support_cells, goal, split_switches, stand_roll, lie_roll)`. A* dựng H2 một lần cho mỗi level và báo thời gian dựng riêng trong `SearchResult.preprocessing_time`, đúng như gợi ý ở mục "Preprocessing có tính vào Search Time không?".
-3. **Fallback về 0 cho ngõ cụt.** `H2Heuristic.distance` trả \(d_\alpha\), bằng \(\infty\) khi abstract state không tới được goal. `H2Heuristic.__call__` (hàm A\* dùng) đổi \(\infty\) thành `0`. State có \(d_\alpha=\infty\) là **ngõ cụt thật**: ngay trên đồ thị nới lỏng cũng không tới được goal, nên concrete càng không tới được. Fallback này giữ admissibility (\(0\le h^*=\infty\)) nhưng **làm mất consistency** ở các cạnh đi vào ngõ cụt (Mệnh đề 3 bên dưới).
+3. **Giữ \(\infty\) cho ngõ cụt (từ 2026-10-26).** `H2Heuristic.__call__` trả \(d_\alpha\), bằng \(\infty\) khi abstract state không tới được goal. State có \(d_\alpha=\infty\) là **ngõ cụt thật**: ngay trên đồ thị nới lỏng cũng không tới được goal, nên concrete càng không tới được. A\* không đưa các state có \(h=\infty\) vào frontier; nếu initial state có \(h=\infty\) thì trả `solved = False` ngay. Bản trước đổi \(\infty\) thành `0`. Cách đó vẫn admissible nhưng làm mất consistency ở các cạnh đi vào ngõ cụt (Nhận xét 3 bên dưới), nên đã bị bỏ.
 4. **A\*** giữ `best_cost` (g-score) và cho phép reopen; goal test khi pop. Heuristic không được dùng làm điều kiện visited.
 
 ### Chứng minh bằng lập luận
 
-Ký hiệu: \(S\) là tập concrete state, \(c(s,a,s')=\) `Engine.step_cost` \(\in\{1.5, 1.0, 0.1\}\), \(h^*(s)\) là chi phí tối ưu thật từ \(s\) tới goal (\(\infty\) nếu không tới được). Gọi \(G_\alpha\) là đồ thị abstract trong `_build_abstract_graph`, \(\alpha\) là ánh xạ trong `H2Heuristic.distance`, và \(d_\alpha(x)\) là khoảng cách ngắn nhất từ \(x\) tới \(N(g,\text{STANDING})\) trên \(G_\alpha\) (reverse Dijkstra cho đúng giá trị này vì mọi trọng số \(>0\)).
+Ký hiệu: \(S\) là tập concrete state, \(c(s,a,s')=\) `Engine.step_cost` \(\in\{1.5, 1.0, 0.1\}\), \(h^*(s)\) là chi phí tối ưu thật từ \(s\) tới goal (\(\infty\) nếu không tới được). Gọi \(G_\alpha\) là đồ thị abstract trong `_build_abstract_graph`, \(\alpha\) là ánh xạ trong `H2Heuristic.__call__`, và \(d_\alpha(x)\) là khoảng cách ngắn nhất từ \(x\) tới \(N(g,\text{STANDING})\) trên \(G_\alpha\) (reverse Dijkstra cho đúng giá trị này vì mọi trọng số \(>0\)).
 
 **Bổ đề 1 (mô phỏng cạnh).** Với mọi transition `OK` \(s\xrightarrow{a}s'\):
 
@@ -49,19 +49,19 @@ Ký hiệu: \(S\) là tập concrete state, \(c(s,a,s')=\) `Engine.step_cost` \(
 
 Mọi ô fragile, bridge và switch đều thuộc \(R\), nên mọi chỗ concrete làm `FALL` chỉ khiến concrete có **ít** cạnh hơn abstract, không bao giờ nhiều hơn. ∎
 
-**Mệnh đề 2 (\(d_\alpha\) consistent và admissible).** Đặt \(h(s)=d_\alpha(\alpha(s))\), giữ nguyên \(\infty\). Khi đó:
+**Mệnh đề 2 (H2 consistent và admissible).** Đặt \(h(s)=d_\alpha(\alpha(s))\), giữ nguyên \(\infty\). Đây đúng là hàm `H2Heuristic.__call__` mà A\* dùng. Khi đó:
 
 - **Consistent.** Theo Bổ đề 1 và bất đẳng thức tam giác của đường đi ngắn nhất: \(h(s)\le w(\alpha(s),\alpha(s'))+h(s')=c(s,a,s')+h(s')\) ở trường hợp (b). Ở trường hợp (a), \(h(s)=h(s')\le 0.1+h(s')\). Quy ước \(\infty\le c+\infty\).
 - **Goal.** Concrete goal là khối đứng tại \(g\) và không split, nên \(\alpha(\text{goal})=N(g,\text{STANDING})\) và \(h(\text{goal})=0\).
 - **Admissible.** Lấy đường tối ưu \(s=s_0\to\dots\to s_k=\text{goal}\). Cộng dồn bất đẳng thức consistent dọc đường đi: \(h(s)\le\sum c_i+h(\text{goal})=h^*(s)\). Nếu \(h^*(s)=\infty\) thì hiển nhiên.
-- **Hệ quả.** \(h(s)=\infty\Rightarrow h^*(s)=\infty\). Vậy A\* có thể bỏ, không đưa vào frontier, mọi state có \(h=\infty\) mà không mất lời giải. ∎
+- **Hệ quả.** \(h(s)=\infty\Rightarrow h^*(s)=\infty\). Vậy A\* bỏ mọi state có \(h=\infty\), không đưa vào frontier, mà không mất lời giải. Với heuristic consistent, A\* tối ưu và mỗi state được pop lần đầu với g tối ưu; reopen vẫn được giữ nhưng không còn cần thiết. ∎
 
-**Mệnh đề 3 (hàm A\* đang dùng: admissible, nhưng không consistent).** Đặt \(\tilde h=d_\alpha\) nếu hữu hạn, ngược lại \(\tilde h=0\).
+**Nhận xét 3 (vì sao không fallback \(\infty\to0\)).** Đặt \(\tilde h=d_\alpha\) nếu hữu hạn, ngược lại \(\tilde h=0\). Đây là bản cài đặt trước 2026-10-26.
 
-- **Admissible.** Nếu \(d_\alpha\) hữu hạn thì \(\tilde h=h\le h^*\) theo Mệnh đề 2. Nếu \(d_\alpha=\infty\) thì \(\tilde h=0\le h^*\). Vì A\* trong repo cho reopen và goal test khi pop, admissible là đủ để A\* trả lời giải tối ưu.
-- **Không consistent.** Có thể tồn tại cạnh \(s\to s'\) với \(d_\alpha(s)\) hữu hạn và \(d_\alpha(s')=\infty\), tức state nguồn còn đường khác tới goal nhưng bước này đi vào ngõ cụt. Khi đó \(\tilde h(s)=d_\alpha(s)>c+0=c+\tilde h(s')\) bất cứ khi nào \(d_\alpha(s)>c\). Đây là phản ví dụ thật: xem kiểm chứng bên dưới. ∎
+- **Admissible.** Nếu \(d_\alpha\) hữu hạn thì \(\tilde h=h\le h^*\) theo Mệnh đề 2. Nếu \(d_\alpha=\infty\) thì \(\tilde h=0\le h^*\).
+- **Không consistent.** Có thể tồn tại cạnh \(s\to s'\) với \(d_\alpha(s)\) hữu hạn và \(d_\alpha(s')=\infty\), tức state nguồn còn đường khác tới goal nhưng bước này đi vào ngõ cụt. Khi đó \(\tilde h(s)=d_\alpha(s)>c+0=c+\tilde h(s')\) bất cứ khi nào \(d_\alpha(s)>c\). Thực nghiệm trên bản cũ đo được 84 cạnh như vậy (`level15`: 60, `level17`: 24). Tất cả đều là cạnh **ghép khối** (split → merge) đi vào một pose ngõ cụt: `level15` \((3,3)\) HORIZONTAL, `level17` \((6,1)\) VERTICAL. Ngoài ra, A\* còn phải mở rộng các ngõ cụt đó với \(f=g\). ∎
 
-Kết luận cho report: **chứng minh được bằng lập luận** rằng H2 admissible (cả hai dạng) và rằng \(d_\alpha\) (giữ \(\infty\)) consistent. Hàm đang chạy trong A\* **không** consistent. Muốn tuyên bố "H2 consistent", phải sửa `__call__` để trả `distance` (giữ \(\infty\)) và để A\* không đưa vào frontier các state có \(h=\infty\).
+Kết luận cho report: H2, đúng hàm A\* đang dùng, **được chứng minh bằng lập luận là admissible và consistent** (Mệnh đề 2). Thực nghiệm bên dưới xác nhận điều đó trên toàn bộ state đạt được của 120 case.
 
 ### Kiểm chứng thực nghiệm (2026-10-26)
 
@@ -69,11 +69,11 @@ Chạy `python -m experiments.verify_heuristic` trên 120 case của `experiment
 
 | Heuristic | \(h>h^*\) | \(h(s)>c+h(s')\) | \(h(\text{goal})\ne0\) |
 | --- | --- | --- | --- |
-| \(\tilde h\) (`H2`, hàm A\* dùng) | 0 | 84: GUI-015 (`level15`) 60, GUI-017 (`level17`) 24 | 0 |
-| \(h=d_\alpha\) (`H2_inf`) | 0 | 0 | 0 |
+| \(h=d_\alpha\) (`H2`, hàm A\* dùng) | 0 | 0 | 0 |
 | H1 | 0 | 21 (GUI-008/009/010/015/017) | 0 |
+| \(\tilde h\) (bản cũ, fallback \(\infty\to0\)) | 0 | 84: GUI-015 (`level15`) 60, GUI-017 (`level17`) 24 | 0 |
 
-Cả 84 vi phạm của \(\tilde h\) đều là cạnh **ghép khối** (split → merge) đi vào một pose ngõ cụt (`level15`: \((3,3)\) HORIZONTAL; `level17`: \((6,1)\) VERTICAL), đúng như dự đoán của Mệnh đề 3. Benchmark 120 case: total cost của A\* trùng UCS ở mọi case.
+Dòng \(\tilde h\) là số đo trên bản cài đặt trước khi sửa, giữ lại để minh hoạ Nhận xét 3. Benchmark 120 case sau khi sửa (lượt `20261026T065916Z`): total cost của A\* trùng UCS ở mọi case. `status`, `expanded_nodes`, `solution_length` và `total_cost` trùng với lượt chạy trước khi sửa ở cả 480 dòng, tức trên bộ test này A\* không mở rộng state ngõ cụt nào trước khi tới goal.
 
 ### Baseline H1
 

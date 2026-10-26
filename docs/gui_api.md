@@ -387,7 +387,7 @@ def step_cost(self, state: State, action: Action, next_state: State) -> float: .
 - `total_cost` is the sum of `step_cost` over the path and may differ from `solution_length`.
 - **BFS, DFS:** ignore cost during search; still report `total_cost` as the sum.
 - **UCS:** priority `g` = sum of `step_cost` from start.
-- **A\*:** `f = g + h`; the current implementation uses precomputed cost-aware H2 by default. It builds a relaxed graph with orientation and static VOID topology, and enables split cube-pair states. Engine supplies immutable heuristic inputs through `HeuristicContext`. H2 is admissible (proof and full-state-space check in `docs/deep-research-report.md`), so A* returns optimal-cost paths; the current fallback (∞ → 0) is not consistent on `level15`/`level17`.
+- **A\*:** `f = g + h`; the current implementation uses precomputed cost-aware H2 by default. It builds a relaxed graph with orientation and static VOID topology, and enables split cube-pair states. Engine supplies immutable heuristic inputs through `HeuristicContext`. H2 is admissible (proof and full-state-space check in `docs/deep-research-report.md`), and consistent, so A* returns optimal-cost paths. H2 returns ∞ for proven dead ends, and A* never pushes those states.
 
 ---
 
@@ -444,8 +444,8 @@ Rules:
 
 - `path` contains action strings (§2.1); `solution_length == len(path)`. `SWITCH_CUBE` entries are legal by construction.
 - `solved == false` means "search exhausted, no solution exists": `path: []`, `solution_length: 0`, `total_cost: 0.0`; metrics are still reported.
-- `search_time` = solver search plus path/result construction; A* H2 construction is reported separately in `preprocessing_time` (0 for BFS/DFS/UCS or injected heuristics). Solver-side elapsed time is `search_time + preprocessing_time`.
-- `memory_usage` = peak traced MB during the solver call. Measurement is serialized because `tracemalloc` is process-global; an H2 cache built by an earlier call is already allocated before the next measurement. If an external profiler already owns tracing, this field is `0` (unavailable).
+- `search_time` = solver search plus path/result construction; A* H2 construction is reported separately in `preprocessing_time` (0 for BFS/DFS/UCS or injected heuristics; about 0 when the H2 table for that level is already in the process cache). Solver-side elapsed time is `search_time + preprocessing_time`.
+- `memory_usage` = peak traced MB during the solver call. Measurement is serialized because `tracemalloc` is process-global; in the long-running server, an H2 cache built by an earlier call is already allocated before the next measurement. The benchmark runner calls `clear_h2_cache()` before every run, so its A* preprocessing time and memory always include a fresh H2 build. If an external profiler already owns tracing, this field is `0` (unavailable).
 - `expanded_nodes` = popped non-goal states whose successors were generated. Goal states are not counted, including an initial state that is already the goal.
 - All metrics are finite JSON numbers — never `NaN`, `Infinity`, or `null`; an unavailable metric is `0`.
 - Solving starts from the `state` sent in the request (usually the current GUI state).
@@ -623,7 +623,7 @@ Solvers block the calling thread; such a GUI must run them in a worker thread, a
 | Bridge/switch metadata schema; `bridge_states` representation; split-mode state semantics | TV2 | Implemented by `game/board.py`, `game/engine.py`, and the HTTP adapter |
 | Cost function for UCS/A\* (`step_cost`) | team | Current defaults 1.5/1.0/0.1; confirm final semantics (`docs/api.md` §6.2) |
 | `server.py` FastAPI backend (endpoints, worker thread, timeout) | TV1/TV2 | `/transition` and `/solve` routes, worker execution, and timeout are implemented |
-| BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Present and registered; cost/heuristic semantics still require team confirmation before relying on UCS/A* results |
+| BFS/DFS/UCS/A\* solver modules | TV3/TV4 | Present and registered; H2 is proven admissible and consistent (`docs/deep-research-report.md`); final cost values still need team confirmation |
 | Solver/replay GUI controls | TV5 | Integrated with /solve and sequential /transition replay |
 | Static serving vs CORS decision | TV5/lead | Same-origin static serving implemented; cross-origin deployment needs explicit CORS configuration |
 
@@ -647,6 +647,7 @@ Kept for reference only. The legacy GUI/backend adapter that predated this contr
 
 ## Changelog
 
+- v11 (2026-10-26): H2 keeps ∞ for dead ends and is consistent; A* skips h = ∞ states; documented the H2 cache effect on `preprocessing_time`/`memory_usage` and the benchmark's `clear_h2_cache()`.
 - v10 (2026-10-26): merged the former `docs/API_CONTRACT.md` copy and `docs/Hướng dẫn UI.md` into this file; replaced the never-built `web/src/*.js` layout with the real `gui/index.html` structure; documented hidden solver metrics and current controls.
 - v9 (2026-10-20): documented cooperative solve cancellation and metric semantics; added `preprocessing_time` to the SearchResult wire schema.
 - v8 (2026-10-20): enabled GUI solver selection and connected /solve to replay through /transition.

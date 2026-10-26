@@ -15,6 +15,34 @@
 - Kiểm tra đã chạy: `build_test_set` chạy hai lần cho cùng file (idempotent, 120 `case_id` không trùng); `verify_heuristic` trên 120 case (115.043 state, 379.858 cạnh): H2 0 vi phạm admissible, 84 vi phạm consistent (GUI-015: 60, GUI-017: 24); H2 giữ ∞ 0/0; H1 0 vi phạm admissible, 21 vi phạm consistent. `run_experiments`: 480/480 solved, total cost A* = UCS ở mọi case; 80 dòng của 20 case GUI trùng hoàn toàn với `results.csv` trước đó (status, expanded nodes, solution length, total cost). `compileall`, import `game, solvers, server`, `--help` của ba script. Chưa chạy lại `analysis.ipynb`; chưa chạy GUI.
 - Viết lại README theo code hiện tại: thêm `assets/` và endpoint `/assets/{path}`, bảng phím/nút của GUI, khóa thuật toán `ASTAR` và giới hạn 10 giây của `/solve`, `DEFAULT_COST`, đủ trường `SearchResult`, tùy chọn của runner (`--repeat`, `--timeout`…), lệnh `verify_heuristic`, bảng kết quả trung bình, CI smoke check, yêu cầu Python ≥ 3.10 và liên kết tới `deep-research-report.md`/`CHANGELOG.md`/`Agents.md`. Bỏ bước `ensurepip` thừa.
 - Kiểm tra đã chạy: `python -m compileall -q game solvers experiments server.py`, import `game, solvers, server`, `python -m experiments.run_experiments --help`; đối chiếu route trong `server.py`, phím trong `gui/index.html`, `CostConfig`, `SearchResult` và argparse của runner. Không chạy GUI.
+- Sửa các phát hiện của `/code-review`:
+  - **H2 consistent.** `H2Heuristic.__call__` giữ ∞ cho ngõ cụt (bỏ fallback ∞ → 0 và gộp `distance` vào `__call__`). A* không đưa state có h = ∞ vào frontier, và trả unsolved ngay nếu initial state có h = ∞.
+  - **Đo preprocessing đúng khi có cache.** Thêm `clear_h2_cache()` (export từ `solvers`); `experiments/benchmark.py` gọi nó trước mỗi lượt để `preprocessing_time` và peak memory của A* không còn ≈ 0 khi H2 được lấy từ cache (`--repeat` > 1).
+  - **`Engine.successors()`.** Trả cặp (action, state), mỗi transition chỉ tính một lần. `legal_actions` dựa trên nó, và BFS/DFS/UCS/A* cùng `verify_heuristic` chuyển sang dùng nó.
+  - **Dùng chung reverse Dijkstra.** `_reverse_dijkstra` thành `reverse_dijkstra` (generic) và được `verify_heuristic.true_costs` dùng lại; bỏ cột `H2_inf` vì giờ trùng với `H2`.
+  - **`build_test_set`.**
+    - Thêm nhóm `advanced_switches` cho level có heavy/split switch, để nhóm khớp `group_definitions`.
+    - ID `GUI-xxx` lấy theo số trong tên file.
+    - `groups`, `cases_per_group` (28/28/28/25/11) và `independent_cases_per_group` tính từ dữ liệu thật.
+    - `test_set.json` được dựng lại; `analysis.ipynb` thêm nhóm mới vào `GROUP_ORDER`.
+  - **`run_experiments`.** Dựng `Engine` một lần cho mỗi case thay vì mỗi lần repeat. Metadata ghi đường dẫn tương đối so với gốc repo.
+  - **Không đổi:** cảnh báo `IndexError` khi dataset rỗng ở `verify_heuristic`, vì `load_dataset` đã từ chối test set dưới 100 case.
+  - **Tài liệu cập nhật:** README, `experiments/README.md` (nhóm, bảng kết quả mới, bảng theo nhóm, kiểm chứng heuristic), `deep-research-report.md` (Mệnh đề 2 áp dụng cho hàm A* dùng; Mệnh đề 3 thành "Nhận xét 3" về bản cũ), `api.md`, `gui_api.md`, `status.md` (bỏ blocker H2 consistency, thêm delete-zone), `Mô tả công việc.md`.
+- Kiểm tra đã chạy:
+  - `python -m compileall -q game solvers experiments server.py` và import `game, solvers, server`.
+  - `python -m experiments.build_test_set` chạy hai lần, file không đổi (idempotent).
+  - `python -m experiments.verify_heuristic` cho 115.043 state và 379.858 cạnh, không đổi so với trước. H2 có 0 vi phạm admissible, 0 vi phạm consistent và 0 goal có h ≠ 0; H1 có 0 vi phạm admissible và 21 vi phạm consistent.
+  - `python -m experiments.run_experiments` (lượt `20261026T065916Z`): 480/480 solved. `status`, `expanded_nodes`, `solution_length` và `total_cost` trùng lượt `20261026T040427Z` ở cả 480 dòng, và total cost của A* bằng UCS ở mọi case.
+  - `--algorithms "A*" --repeat 2` (output ở scratchpad): preprocessing trung bình 0.0184 s ở cả hai lượt.
+  - A* với heuristic luôn trả ∞ trả `solved = False` và 0 expanded. Trên level15, A* gọi lần hai khi H2 còn trong cache báo preprocessing 0.00015 s; sau `clear_h2_cache()` thì đo lại được 0.21 s.
+  - Chưa chạy GUI trên trình duyệt và chưa chạy lại `analysis.ipynb`.
+- Rà lại tài liệu so với code sau đợt sửa trên:
+  - README: nút SOLVE không còn ghi "hiển thị metrics", vì `#solver-metrics` đang bị CSS ẩn (`.input-hud .solver-metrics { display: none; }`).
+  - `status.md`: liệt kê đủ route `/`, `/assets/{path}` và timeout 10 s.
+  - `api.md` §6.7: bỏ "H2 guarantees" khỏi việc còn mở.
+  - `gui_api.md`: thêm ảnh hưởng của cache H2 lên `preprocessing_time`/`memory_usage`, cập nhật dòng ownership về heuristic, thêm v11.
+  - `index.md`: thêm lệnh `verify_heuristic` và 5 nhóm.
+- Kiểm tra đã chạy: grep các khái niệm cũ (`H2_inf`, `distance`, fallback, `040427Z`, `bốn nhóm`…) trên mọi file `.md`; script kiểm tra liên kết và đường dẫn trong backtick. Các tham chiếu tới file không tồn tại chỉ còn ở CHANGELOG, delete-zone, ghi chú "đã gộp" và 2 ảnh `sandbox:/mnt/data/...` trong `deep-research-report.md` (ảnh chưa từng có trong repo, chưa xử lý).
 
 ## 2026-10-22
 

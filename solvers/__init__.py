@@ -12,7 +12,7 @@ from solvers.bfs import BFSSolver
 from solvers.bfs import solve as solve_bfs
 from solvers.dfs import DFSSolver
 from solvers.dfs import solve as solve_dfs
-from solvers.heuristics import H2Heuristic, build_h1, build_h2
+from solvers.heuristics import H2Heuristic, build_h1, build_h2, clear_h2_cache
 from solvers.search_result import SearchResult
 from solvers.ucs import solve as solve_ucs
 
@@ -25,6 +25,7 @@ __all__ = [
     "SearchResult",
     "build_h1",
     "build_h2",
+    "clear_h2_cache",
     "finalize",
     "path_cost",
     "reconstruct_path",

@@ -8,7 +8,7 @@
 ## 1. Architectural & Integration Principles
 
 1. **Single Source of Truth:** The `Engine` is the **only** module that contains and enforces Bloxorz game rules.
-2. **Solver Isolation:** Search algorithms interact with the game through the Engine API (`legal_actions`, `transition`, `is_goal`, `step_cost`). A* heuristics additionally receive an immutable `HeuristicContext` snapshot from Engine; they do not inspect mutable board/mechanics internals.
+2. **Solver Isolation:** Search algorithms interact with the game through the Engine API (`successors`, `legal_actions`, `transition`, `is_goal`, `step_cost`). A* heuristics additionally receive an immutable `HeuristicContext` snapshot from Engine; they do not inspect mutable board/mechanics internals.
 3. **GUI Purity:** The GUI never decides game transitions. The browser sends actions through `server.py` over HTTP; the adapter calls `Engine.transition()` and returns the authoritative result for rendering.
 4. **State Immutability & Hashability:** `State` instances are strictly immutable and hashable so solvers can safely use them in `visited` sets and priority queues.
 5. **Uniform Solver Contract:** All search algorithms (BFS, DFS, UCS, A\*) return the identical `SearchResult` data structure.
@@ -53,7 +53,7 @@ Consumers import from the top-level `game` package (defined in `game/__init__.py
 
 Solvers are imported from `solvers` (`solvers/__init__.py`): `solve_bfs`,
 `solve_dfs`, `solve_ucs`, `solve_astar`, `SearchResult`, `build_h1`, `build_h2`,
-`H2Heuristic`, plus the shared helpers `BaseSolver`, `BFSSolver`, `DFSSolver`,
+`H2Heuristic`, `clear_h2_cache`, plus the shared helpers `BaseSolver`, `BFSSolver`, `DFSSolver`,
 `ParentMap`, `finalize`, `path_cost`, `reconstruct_path`.
 
 ---
@@ -118,6 +118,7 @@ class Engine:
     def get_initial_state(self) -> State: ...
     def get_heuristic_context(self) -> HeuristicContext: ...
     def legal_actions(self, state: State) -> list[Action]: ...
+    def successors(self, state: State) -> list[tuple[Action, State]]: ...
     def transition(self, state: State, action: Action) -> TransitionResult: ...
     def is_goal(self, state: State) -> bool: ...
     def step_cost(self, state: State, action: Action, next_state: State) -> float: ...
@@ -156,6 +157,11 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 - Returns only actions whose `transition(state, action).status` is `TransitionStatus.OK`. `FALL` and `ILLEGAL` results are excluded; `SWITCH_CUBE` can be returned only in split mode.
 - Goal states are **not** treated as terminal by `legal_actions`: legal moves continue to be generated if the block can roll from that position. Solvers check `is_goal(state)` themselves.
 
+#### `successors(state: State) -> list[tuple[Action, State]]`
+
+- Same actions and order as `legal_actions`, paired with the resulting `State`; calls `transition` once per action.
+- BFS, DFS, UCS, A\* and `experiments/verify_heuristic.py` use it instead of `legal_actions` + `transition`, so each transition is computed only once. `legal_actions` is built on top of it.
+
 #### `transition(state: State, action: Action) -> TransitionResult`
 
 - **Pure function:** Never mutates `state` or internal board structures; has no side effects.
@@ -176,6 +182,8 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 
 - Read-only snapshot for heuristics (`game/heuristic_context.py`): `support_cells` (every non-VOID cell, i.e. relaxed support), `goal`, `split_switches` (`SplitSwitchContext(cell, split_cells)`), `stand_roll`, `lie_roll`.
 - A\* builds H2 from it; solvers never read `board`/`mechanics` directly.
+- H2 returns `inf` for proven dead ends (abstract state cannot reach the goal). A\* never pushes a state with `h = inf`, and returns `solved = False` immediately if the initial state has `h = inf`. H2 is admissible and consistent (`docs/deep-research-report.md`).
+- `build_h2` caches tables per `HeuristicContext` (`lru_cache`). `clear_h2_cache()` clears the cache; the benchmark runner calls it before every run so that `preprocessing_time` and memory measure a real build.
 
 ### 4.2 Board & Level Loader (`game/board.py`)
 
@@ -250,7 +258,7 @@ Status legend: `CONFIRMED` = decided (human, 2026-10-17); `TEMPORARY` = confirme
 - All configured costs must be finite and non-negative; UCS/A* rely on this condition.
 - `bridge_cross_penalty=0.3` is reserved and currently unused by `Engine.step_cost`.
 - BFS/DFS find paths by action count and report their Engine-computed path cost. UCS/A* use weighted `step_cost` for path selection.
-- `search_time` measures search and result construction. A* reports H2 build time separately as `preprocessing_time`; `expanded_nodes` counts popped non-goal states whose successors were generated.
+- `search_time` measures search and result construction. A* reports H2 build time separately as `preprocessing_time` (about 0 when the table comes from the cache); `expanded_nodes` counts popped non-goal states whose successors were generated.
 - This is the current code behavior, not a finalized project-wide cost decision; confirm it before interpreting solver comparisons or optimality claims.
 
 ### 6.3 Level JSON Format (`CONFIRMED`)
@@ -336,7 +344,7 @@ The engine applies switch effects deterministically: it inspects the resulting b
 
 ### 6.6 Core Rule Notes
 
-- `legal_actions` checks `transition` for each `Action` in enum declaration order (`UP, DOWN, LEFT, RIGHT, SWITCH_CUBE`) and returns only actions whose result has `TransitionStatus.OK`; `FALL` and `ILLEGAL` are excluded. A goal state is not treated as terminal by this method.
+- `legal_actions` / `successors` check `transition` for each `Action` in enum declaration order (`UP, DOWN, LEFT, RIGHT, SWITCH_CUBE`) and return only actions whose result has `TransitionStatus.OK`; `FALL` and `ILLEGAL` are excluded. A goal state is not treated as terminal by this method.
 - `SWITCH_CUBE` chỉ hợp lệ khi `split_mode == True`.
 - Cơ chế nâng cao: `FRAGILE`, `BRIDGE`, switches (`soft`, `heavy`, `split`) đã được kích hoạt đầy đủ.
 
@@ -346,5 +354,5 @@ The engine applies switch effects deterministically: it inspects the resulting b
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
 | TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | Automated tests                      |
 | TV3 (BFS/DFS)            | `solvers/bfs.py`, `solvers/dfs.py`, 20 GUI levels, 120-case benchmark | Automated tests                      |
-| TV4 (UCS/A\*)            | `solvers/ucs.py`, `solvers/astar.py`, H1/H2, weighted cost            | Team confirmation of costs and H2 guarantees |
+| TV4 (UCS/A\*)            | `solvers/ucs.py`, `solvers/astar.py`, H1/H2, weighted cost            | Team confirmation of final costs |
 | TV5 (GUI/integration)    | GUI, same-origin server, `/solve` + replay, board/state/transition wire schema | Final cost values             |

@@ -6,7 +6,7 @@ from dataclasses import replace
 from threading import Event
 from time import perf_counter
 
-from game.engine import Engine, TransitionStatus
+from game.engine import Engine
 from game.state import State
 from solvers.base_solver import ParentMap, finalize, reconstruct_path
 from solvers.runtime import cancellation_scope, check_cancelled, track_peak_memory
@@ -41,12 +41,8 @@ def solve(
                     goal_state = state
                     break
                 expanded += 1
-                for action in engine.legal_actions(state):
+                for action, nxt in engine.successors(state):
                     check_cancelled()
-                    result = engine.transition(state, action)
-                    if result.status is not TransitionStatus.OK or result.state is None:
-                        continue
-                    nxt = result.state
                     new_cost = cost + engine.step_cost(state, action, nxt)
                     if new_cost < best_cost.get(nxt, math.inf):
                         best_cost[nxt] = new_cost

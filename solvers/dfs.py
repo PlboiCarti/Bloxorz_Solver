@@ -5,7 +5,7 @@ from __future__ import annotations
 from threading import Event
 
 from game.actions import Action
-from game.engine import Engine, TransitionStatus
+from game.engine import Engine
 from game.state import State
 from solvers.base_solver import BaseSolver, ParentMap
 from solvers.runtime import check_cancelled
@@ -40,13 +40,10 @@ class DFSSolver(BaseSolver):
 
             expanded_nodes += 1
             successors: list[tuple[State, Action]] = []
-            for action in self.engine.legal_actions(current):
+            for action, nxt in self.engine.successors(current):
                 check_cancelled()
-                result = self.engine.transition(current, action)
-                if result.status is not TransitionStatus.OK or result.state is None:
-                    continue
-                if result.state not in visited:
-                    successors.append((result.state, action))
+                if nxt not in visited:
+                    successors.append((nxt, action))
 
             for next_state, action in reversed(successors):
                 stack.append((next_state, current, action))

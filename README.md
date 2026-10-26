@@ -15,11 +15,13 @@ phát lại lời giải.
 - BFS, DFS, UCS và A* dùng chung `Engine` và trả về `SearchResult` có metrics.
   A* mặc định dùng heuristic H2 (relaxed pattern database).
 - Benchmark dùng bộ test cố định 120 case (`experiments/test_set.json`): 100 bản
-  đồ độc lập và 20 level GUI được nhúng sẵn board. Kết quả gần nhất: 480/480 lượt
-  solved, không timeout, không error.
-- H2 được chứng minh admissible bằng lập luận và kiểm chứng trên toàn bộ state
-  đạt được của 120 case. Hàm A* đang dùng chưa consistent ở 2 level
-  (`level15`, `level17`); xem `docs/deep-research-report.md`.
+  đồ độc lập và 20 level GUI được nhúng sẵn board, chia thành 5 nhóm theo
+  mechanics (`basic`, `fragile`, `switches_bridges`, `combined`,
+  `advanced_switches`). Kết quả gần nhất: 480/480 lượt solved, không timeout,
+  không error.
+- H2 được chứng minh admissible và consistent bằng lập luận, và kiểm chứng trên
+  toàn bộ state đạt được của 120 case (0 vi phạm). H2 trả ∞ cho ngõ cụt, và A*
+  bỏ các state đó khỏi frontier. Xem `docs/deep-research-report.md`.
 - Chưa có automated test suite. CI (`.github/workflows/ci.yml`) chỉ chạy smoke
   check: compile và import `game`, `solvers`, `server`.
 
@@ -54,7 +56,7 @@ python -m pip install numpy pandas matplotlib jupyter ipykernel
 | `Space` / **ĐỔI KHỐI** | Đổi cube điều khiển khi đang split |
 | `U`, `Backspace` / **UNDO** | Hoàn tác một bước |
 | `R` / **RESTART** | Chơi lại level hiện tại |
-| **SOLVE** | Gọi solver đã chọn (BFS/DFS/UCS/A*) và hiển thị metrics |
+| **SOLVE** | Gọi solver đã chọn (BFS/DFS/UCS/A*) rồi phát lại lời giải. Metrics được ghi vào `#solver-metrics` nhưng đang bị CSS ẩn; số liệu lấy từ `experiments/` |
 | ⏮ ◀ ▶ ▶ ⏭, thanh **TỐC ĐỘ** | Phát lại lời giải từng bước hoặc tự động |
 
 ## Cấu trúc chính
@@ -62,7 +64,7 @@ python -m pip install numpy pandas matplotlib jupyter ipykernel
 ```text
 game/                         # Luật game: Board, State, Engine
   board.py                    #   parse/validate level JSON (load_board, parse_board)
-  engine.py                   #   transition, legal_actions, step_cost, is_goal
+  engine.py                   #   transition, successors, legal_actions, step_cost, is_goal
   geometry.py, split_block.py #   hình học lăn khối, split/merge
   switches.py, tiles.py       #   switch/bridge và loại ô
   cost_config.py              #   CostConfig (chi phí bước đi)
@@ -134,21 +136,24 @@ result = solve_astar(initial_state, engine)
 print(result.solved, result.total_cost, result.expanded_nodes)
 ```
 
-Mọi solver dùng `Engine` để sinh successor và kiểm tra goal, và nhận tùy chọn
-`cancel_event` để dừng giữa chừng:
+Mọi solver dùng `Engine.successors()` để sinh successor, gọi `transition` một
+lần cho mỗi action, và dùng `Engine.is_goal()` để kiểm tra goal. Tất cả nhận tùy
+chọn `cancel_event` để dừng giữa chừng:
 
 - **BFS**: lời giải ít bước nhất (không xét cost).
 - **DFS**: graph search với visited set; không đảm bảo tối ưu.
 - **UCS**: tối thiểu tổng `Engine.step_cost()`.
-- **A\***: ưu tiên `g + h`, mặc định H2 (truyền `heuristic=` để đổi). Cho phép
-  reopen state nên vẫn tối ưu với heuristic admissible.
+- **A\***: ưu tiên `g + h`, mặc định H2 (truyền `heuristic=` để đổi). State có
+  `h = ∞` (ngõ cụt đã được chứng minh) không được đưa vào frontier. H2 consistent
+  nên A* trả lời giải tối ưu về cost.
 
 Chi phí mặc định (`DEFAULT_COST`): lăn khi đứng `1.5`, lăn khi nằm `1.0`, đổi cube
 `0.1`.
 
 `SearchResult` gồm `solved`, `path`, `total_cost`, `search_time`,
 `memory_usage`, `expanded_nodes`, `solution_length` và `preprocessing_time`
-(thời gian dựng H2, chỉ khác 0 với A*).
+(thời gian dựng H2, chỉ khác 0 với A*). Bảng H2 được cache theo level. Benchmark
+gọi `clear_h2_cache()` trước mỗi lượt để luôn đo chi phí dựng thật.
 
 ## HTTP API
 
@@ -190,7 +195,8 @@ Kết quả gần nhất (trung bình trên 120 case):
 | A* | 87.2 | 27.21 | 32.30 |
 
 Expanded nodes, solution length và total cost tái lập được giữa các lần chạy.
-Time và memory thay đổi theo máy và tải. Thiết kế bộ test, định nghĩa cột CSV và
+Time và memory thay đổi theo máy và tải. `results_metadata.json` ghi đường dẫn
+tương đối so với gốc repo. Thiết kế bộ test, định nghĩa cột CSV và
 bảng chi tiết nằm trong [`experiments/README.md`](experiments/README.md).
 
 ## Tài liệu liên quan

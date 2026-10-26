@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from game import Engine, State
-from solvers import solve_astar, solve_bfs, solve_dfs, solve_ucs
+from solvers import clear_h2_cache, solve_astar, solve_bfs, solve_dfs, solve_ucs
 from solvers.runtime import SolverCancelled
 
 SOLVERS: dict[str, Callable[..., Any]] = {
@@ -24,7 +24,12 @@ def run_with_timeout(
     engine: Engine,
     timeout_seconds: float,
 ) -> dict[str, Any]:
-    """Chạy solver với timeout hợp tác, không làm treo toàn bộ benchmark."""
+    """Chạy solver với timeout hợp tác, không làm treo toàn bộ benchmark.
+
+    Cache H2 bị xoá trước mỗi lượt để A* luôn tự dựng bảng: preprocessing time
+    và peak memory phản ánh chi phí thật, kể cả khi ``--repeat`` > 1.
+    """
+    clear_h2_cache()
     cancel_event = threading.Event()
     result_queue: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=1)
 

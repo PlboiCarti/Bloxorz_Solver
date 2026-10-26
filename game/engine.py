@@ -114,11 +114,20 @@ class Engine:
         Thứ tự hành động được cố định: UP, DOWN, LEFT, RIGHT, SWITCH_CUBE.
         Trạng thái đích (goal) không bị xem là kết thúc trong legal_actions.
         """
-        return [
-            action
-            for action in _ACTION_ORDER
-            if self.transition(state, action).status is TransitionStatus.OK
-        ]
+        return [action for action, _ in self.successors(state)]
+
+    def successors(self, state: State) -> list[tuple[Action, State]]:
+        """Các cặp (action, state kế tiếp) có status OK, cùng thứ tự với legal_actions.
+
+        Mỗi action chỉ gọi `transition` một lần; solver dùng hàm này thay cho
+        `legal_actions` + `transition` để không tính lại transition.
+        """
+        pairs: list[tuple[Action, State]] = []
+        for action in _ACTION_ORDER:
+            result = self.transition(state, action)
+            if result.status is TransitionStatus.OK and result.state is not None:
+                pairs.append((action, result.state))
+        return pairs
 
     def transition(self, state: State, action: Action) -> TransitionResult:
         """Hàm thuần túy (pure function) tính toán kết quả của một hành động.

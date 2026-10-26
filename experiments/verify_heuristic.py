@@ -10,16 +10,13 @@ rồi kiểm tra cho từng heuristic:
 
 Heuristic được kiểm tra:
 
-- ``H2``: đúng hàm A* đang dùng (``inf`` được fallback về 0);
-- ``H2_inf``: khoảng cách abstract d_alpha giữ nguyên ``inf`` (``H2Heuristic.distance``);
+- ``H2``: đúng hàm A* đang dùng (d_alpha, giữ ``inf`` cho ngõ cụt);
 - ``H1``: baseline Manhattan.
 """
 from __future__ import annotations
 
 import argparse
 import csv
-import heapq
-import itertools
 import math
 from collections import defaultdict
 from collections.abc import Callable
@@ -27,12 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from experiments.run_experiments import DEFAULT_DATASET, load_dataset
-from game import Engine, State, TransitionStatus, parse_board
+from game import Engine, State, parse_board
 from solvers import build_h1, build_h2
+from solvers.heuristics.h2 import reverse_dijkstra
 
 EPS = 1e-9
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / "heuristic_check.csv"
-HEURISTICS = ("H2", "H2_inf", "H1")
+HEURISTICS = ("H2", "H1")
 
 
 def explore(engine: Engine, start: State) -> tuple[list[State], list[tuple[State, State, float]]]:
@@ -42,11 +40,7 @@ def explore(engine: Engine, start: State) -> tuple[list[State], list[tuple[State
     edges: list[tuple[State, State, float]] = []
     while stack:
         state = stack.pop()
-        for action in engine.legal_actions(state):
-            result = engine.transition(state, action)
-            if result.status is not TransitionStatus.OK or result.state is None:
-                continue
-            nxt = result.state
+        for action, nxt in engine.successors(state):
             edges.append((state, nxt, engine.step_cost(state, action, nxt)))
             if nxt not in seen:
                 seen.add(nxt)
@@ -63,24 +57,8 @@ def true_costs(
     reverse: dict[State, list[tuple[State, float]]] = defaultdict(list)
     for source, target, cost in edges:
         reverse[target].append((source, cost))
-    distance = {state: math.inf for state in states}
-    serial = itertools.count()
-    frontier: list[tuple[float, int, State]] = []
-    for state in states:
-        if engine.is_goal(state):
-            distance[state] = 0.0
-            frontier.append((0.0, next(serial), state))
-    heapq.heapify(frontier)
-    while frontier:
-        current, _, state = heapq.heappop(frontier)
-        if current != distance[state]:
-            continue
-        for predecessor, cost in reverse[state]:
-            candidate = current + cost
-            if candidate < distance[predecessor]:
-                distance[predecessor] = candidate
-                heapq.heappush(frontier, (candidate, next(serial), predecessor))
-    return distance
+    goals = [state for state in states if engine.is_goal(state)]
+    return reverse_dijkstra(states, reverse, goals)
 
 
 def check(
@@ -116,8 +94,7 @@ def main() -> None:
         states, edges = explore(engine, start)
         optimal = true_costs(engine, states, edges)
         context = engine.get_heuristic_context()
-        h2 = build_h2(context)
-        estimates = {"H2": h2, "H2_inf": h2.distance, "H1": build_h1(context)}
+        estimates = {"H2": build_h2(context), "H1": build_h1(context)}
         row: dict[str, Any] = {
             "case_id": case["case_id"],
             "source_level": case["source_level"],

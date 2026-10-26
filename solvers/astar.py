@@ -7,7 +7,7 @@ from dataclasses import replace
 from threading import Event
 from time import perf_counter
 
-from game.engine import Engine, TransitionStatus
+from game.engine import Engine
 from game.state import State
 from solvers.base_solver import ParentMap, finalize, reconstruct_path
 from solvers.heuristics.h2 import build_h2
@@ -65,9 +65,10 @@ def solve(
             parent: ParentMap = {initial_state: None}
             best_cost: dict[State, float] = {initial_state: 0.0}
             counter = 0
-            frontier: list[tuple[float, int, float, State]] = [
-                (estimate(initial_state), counter, 0.0, initial_state)
-            ]
+            initial_h = estimate(initial_state)
+            frontier: list[tuple[float, int, float, State]] = (
+                [] if math.isinf(initial_h) else [(initial_h, counter, 0.0, initial_state)]
+            )
             expanded = 0
             goal_state: State | None = None
 
@@ -81,21 +82,19 @@ def solve(
                     goal_state = state
                     break
                 expanded += 1
-                for action in engine.legal_actions(state):
+                for action, nxt in engine.successors(state):
                     check_cancelled()
-                    result = engine.transition(state, action)
-                    if result.status is not TransitionStatus.OK or result.state is None:
-                        continue
-                    nxt = result.state
                     new_g = cost + engine.step_cost(state, action, nxt)
                     if new_g < best_cost.get(nxt, math.inf):
+                        h = estimate(nxt)
+                        # h = inf chứng minh nxt là ngõ cụt (H2 là relaxation),
+                        # nên bỏ hẳn khỏi frontier mà không mất lời giải.
+                        if math.isinf(h):
+                            continue
                         best_cost[nxt] = new_g
                         parent[nxt] = (state, action)
                         counter += 1
-                        heapq.heappush(
-                            frontier,
-                            (new_g + estimate(nxt), counter, new_g, nxt),
-                        )
+                        heapq.heappush(frontier, (new_g + h, counter, new_g, nxt))
 
             solved = goal_state is not None
             path = reconstruct_path(parent, goal_state) if goal_state is not None else []

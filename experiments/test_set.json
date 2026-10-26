@@ -7,22 +7,36 @@
     "basic",
     "fragile",
     "switches_bridges",
-    "combined"
+    "combined",
+    "advanced_switches"
   ],
   "design_constraints": {
     "board_size": "13x17",
-    "cases_per_group": 25,
+    "cases_per_group": {
+      "basic": 28,
+      "fragile": 28,
+      "switches_bridges": 28,
+      "combined": 25,
+      "advanced_switches": 11
+    },
     "minimum_reference_solution_length": 18,
     "minimum_reference_expanded_nodes": 100,
     "group_definitions": {
       "basic": "No fragile, bridge, or switch tiles; branchy random terrain.",
       "fragile": "Basic terrain plus fragile tiles placed outside the accepted baseline solution path.",
       "switches_bridges": "A soft switch opens a bridge that starts closed; the resulting board is re-solved before acceptance.",
-      "combined": "Fragile tiles plus a soft switch opening a closed bridge."
+      "combined": "Fragile tiles plus a soft switch opening a closed bridge.",
+      "advanced_switches": "Heavy and/or split switches, with any mix of fragile tiles, bridges and soft switches. Only GUI levels use these mechanics."
     },
     "difficulty": "Approximate strata based on verified BFS reference solution length: easy <22, medium 22-31, hard >=32. This is a proxy, not a universal measure of search difficulty.",
     "reproducibility": "The committed JSON is the fixed test set; generation seed is not needed to reproduce benchmark runs.",
-    "gui_cases": "GUI levels are embedded as-is (all mechanics, including heavy and split switches). Group is assigned by mechanics present on the board; they are not filtered by the minimum length/expanded-node constraints above."
+    "gui_cases": "GUI levels are embedded as-is (all mechanics, including heavy and split switches). Group is assigned by mechanics present on the board: levels with heavy or split switches go to advanced_switches, the rest use the four independent groups. GUI levels are not filtered by the minimum length/expanded-node constraints above, and their fragile tiles may lie on the solution path.",
+    "independent_cases_per_group": {
+      "basic": 25,
+      "fragile": 25,
+      "switches_bridges": 25,
+      "combined": 25
+    }
   },
   "cases": [
     {
@@ -6114,7 +6128,7 @@
     },
     {
       "case_id": "GUI-007",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "easy",
       "source_level": "level7.json",
       "board": {
@@ -6278,7 +6292,7 @@
     },
     {
       "case_id": "GUI-008",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "easy",
       "source_level": "level8.json",
       "board": {
@@ -6335,7 +6349,7 @@
     },
     {
       "case_id": "GUI-009",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "medium",
       "source_level": "level9.json",
       "board": {
@@ -6431,7 +6445,7 @@
     },
     {
       "case_id": "GUI-010",
-      "group": "combined",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level10.json",
       "board": {
@@ -6691,7 +6705,7 @@
     },
     {
       "case_id": "GUI-013",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level13.json",
       "board": {
@@ -6808,7 +6822,7 @@
     },
     {
       "case_id": "GUI-014",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level14.json",
       "board": {
@@ -6899,7 +6913,7 @@
     },
     {
       "case_id": "GUI-015",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level15.json",
       "board": {
@@ -7256,7 +7270,7 @@
     },
     {
       "case_id": "GUI-017",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level17.json",
       "board": {
@@ -7461,7 +7475,7 @@
     },
     {
       "case_id": "GUI-018",
-      "group": "combined",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level18.json",
       "board": {
@@ -7571,7 +7585,7 @@
     },
     {
       "case_id": "GUI-019",
-      "group": "switches_bridges",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level19.json",
       "board": {
@@ -7803,7 +7817,7 @@
     },
     {
       "case_id": "GUI-020",
-      "group": "combined",
+      "group": "advanced_switches",
       "difficulty": "hard",
       "source_level": "level20.json",
       "board": {

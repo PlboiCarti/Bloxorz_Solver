@@ -27,7 +27,7 @@
 ```
 
 - **Game Engine** (`game/`) là nơi duy nhất chứa luật chơi và quyết định state kế tiếp.
-- **AI Solver** (`solvers/`) chỉ dùng Engine API: `legal_actions`, `transition`,
+- **AI Solver** (`solvers/`) chỉ dùng Engine API: `successors`, `legal_actions`, `transition`,
   `is_goal`, `step_cost` và `get_heuristic_context` (cho H2). Solver không tự
   kiểm tra tile, switch hay bridge.
 - **GUI + Integration** (`gui/index.html`, `server.py`) gửi ý định người chơi qua
@@ -56,8 +56,8 @@
 
 | Nhóm | Bàn giao | Trạng thái (xem `docs/status.md`) |
 | --- | --- | --- |
-| TV1 + TV2 | Engine với `get_initial_state`, `legal_actions`, `transition -> TransitionResult`, `is_goal`, `step_cost`, `get_heuristic_context`; loader `load_board`; 20 level JSON. | Đã có; chưa có bộ test tự động |
-| TV3 + TV4 | `solve_bfs`, `solve_dfs`, `solve_ucs`, `solve_astar` cùng trả `SearchResult` (path + search time, memory, expanded nodes, solution length, total cost, preprocessing time). | Đã có; H2 admissible (lập luận + thực nghiệm), chưa consistent ở 2 level |
+| TV1 + TV2 | Engine với `get_initial_state`, `legal_actions`, `successors`, `transition -> TransitionResult`, `is_goal`, `step_cost`, `get_heuristic_context`; loader `load_board`; 20 level JSON. | Đã có; chưa có bộ test tự động |
+| TV3 + TV4 | `solve_bfs`, `solve_dfs`, `solve_ucs`, `solve_astar` cùng trả `SearchResult` (path + search time, memory, expanded nodes, solution length, total cost, preprocessing time). | Đã có; H2 admissible và consistent (lập luận + thực nghiệm) |
 | TV5 | GUI tải level, chơi thủ công, hiển thị đúng ok/fall/illegal, split/bridge, undo/restart, solve và replay qua API. | Đã tích hợp |
 | Lead | `python -m experiments.run_experiments` trên 120 case cố định (`experiments/test_set.json`) × 4 thuật toán. | Đã chạy 480/480 solved |
 

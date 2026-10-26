@@ -19,17 +19,23 @@ ROOT = Path(__file__).resolve().parents[1]
 LEVELS_DIR = ROOT / "levels"
 DEFAULT_DATASET = Path(__file__).resolve().parent / "test_set.json"
 GUI_ORIGIN = "gui_level"
+ADVANCED_GROUP = "advanced_switches"
+GROUPS = ("basic", "fragile", "switches_bridges", "combined", ADVANCED_GROUP)
+ADVANCED_DEFINITION = (
+    "Heavy and/or split switches, with any mix of fragile tiles, bridges and soft "
+    "switches. Only GUI levels use these mechanics."
+)
+
+
+def level_number(path: Path) -> int:
+    match = re.fullmatch(r"level(\d+)\.json", path.name)
+    if match is None:
+        raise ValueError(f"Tên level GUI không hợp lệ: {path.name}")
+    return int(match.group(1))
 
 
 def gui_level_paths() -> list[Path]:
     """Trả level GUI theo thứ tự số: level1, level2, ..., level20."""
-
-    def level_number(path: Path) -> int:
-        match = re.fullmatch(r"level(\d+)\.json", path.name)
-        if match is None:
-            raise ValueError(f"Tên level GUI không hợp lệ: {path.name}")
-        return int(match.group(1))
-
     paths = sorted(LEVELS_DIR.glob("level*.json"), key=level_number)
     if not paths:
         raise ValueError(f"Không có level GUI trong {LEVELS_DIR}")
@@ -37,7 +43,13 @@ def gui_level_paths() -> list[Path]:
 
 
 def classify(board: Board) -> str:
-    """Cùng bốn nhóm với 100 case độc lập, xét theo mechanics có trên board."""
+    """Gán nhóm theo mechanics có trên board, khớp ``group_definitions``.
+
+    Bốn nhóm của 100 case độc lập chỉ có fragile, bridge và soft switch. Level
+    có heavy hoặc split switch thuộc nhóm riêng ``advanced_switches``.
+    """
+    if any(switch.get("type") in ("heavy", "split") for switch in board.switches):
+        return ADVANCED_GROUP
     has_fragile = any("F" in row for row in board.grid_raw)
     has_switches_or_bridges = bool(board.bridges or board.switches)
     if has_fragile and has_switches_or_bridges:
@@ -70,7 +82,7 @@ def features(board: Board) -> list[str]:
     return found
 
 
-def gui_case(index: int, path: Path) -> dict[str, Any]:
+def gui_case(path: Path) -> dict[str, Any]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     board = parse_board(raw)
     engine = Engine(board)
@@ -79,7 +91,8 @@ def gui_case(index: int, path: Path) -> dict[str, Any]:
     if not reference.solved:
         raise ValueError(f"BFS không giải được {path.name}; không đưa vào test set.")
     return {
-        "case_id": f"GUI-{index:03d}",
+        # Theo số trong tên file để ID không lệch khi thêm/xoá level.
+        "case_id": f"GUI-{level_number(path):03d}",
         "group": classify(board),
         "difficulty": difficulty(reference.solution_length),
         "source_level": path.name,
@@ -103,8 +116,10 @@ def main() -> None:
         case for case in dataset["cases"]
         if case.get("design_notes", {}).get("origin") != GUI_ORIGIN
     ]
-    gui_cases = [gui_case(index, path) for index, path in enumerate(gui_level_paths(), 1)]
+    gui_cases = [gui_case(path) for path in gui_level_paths()]
     cases = independent + gui_cases
+    counts = {group: sum(case["group"] == group for case in cases) for group in GROUPS}
+    constraints = dataset["design_constraints"]
 
     dataset["dataset_version"] = 3
     dataset["case_count"] = len(cases)
@@ -115,10 +130,20 @@ def main() -> None:
         "so benchmark runs never read levels/. All cases were solved and validated "
         "with BFS before inclusion; fixed JSON is shared by every algorithm."
     )
-    dataset["design_constraints"]["gui_cases"] = (
+    dataset["groups"] = list(GROUPS)
+    constraints["independent_cases_per_group"] = {
+        group: sum(case["group"] == group for case in independent)
+        for group in GROUPS[:4]
+    }
+    constraints["cases_per_group"] = counts
+    constraints["group_definitions"][ADVANCED_GROUP] = ADVANCED_DEFINITION
+    constraints["gui_cases"] = (
         "GUI levels are embedded as-is (all mechanics, including heavy and split "
-        "switches). Group is assigned by mechanics present on the board; they are "
-        "not filtered by the minimum length/expanded-node constraints above."
+        "switches). Group is assigned by mechanics present on the board: levels "
+        "with heavy or split switches go to advanced_switches, the rest use the "
+        "four independent groups. GUI levels are not filtered by the minimum "
+        "length/expanded-node constraints above, and their fragile tiles may lie "
+        "on the solution path."
     )
     dataset["cases"] = cases
     args.dataset.write_text(
@@ -126,7 +151,7 @@ def main() -> None:
     )
     print(
         f"{args.dataset}: {len(independent)} independent + "
-        f"{len(gui_cases)} GUI = {len(cases)} cases"
+        f"{len(gui_cases)} GUI = {len(cases)} cases; per group {counts}"
     )
 
 
