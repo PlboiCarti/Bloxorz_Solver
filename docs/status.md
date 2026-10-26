@@ -13,7 +13,7 @@
 | AI Solver (TV3/TV4)       | IMPLEMENTED — BFS/DFS/UCS/A* + `SearchResult`; timeout hủy hợp tác tại các checkpoint |
 | HTTP adapter              | IMPLEMENTED — `server.py` (FastAPI): `/levels`, `/levels/{name}`, `/transition`, `/solve` |
 | GUI (TV5)                 | INTEGRATED — `gui/index.html` dùng Three.js và gọi API để chuyển trạng thái, solve/replay |
-| Entrypoint                | `main.py` vẫn rỗng; chạy GUI/API bằng `python server.py`                   |
+| Entrypoint                | `python server.py` (GUI + API)                                             |
 | Experiments               | VERIFIED — 20 level GUI; benchmark BFS/DFS/UCS/A* chạy 80 lượt, 80/80 solved |
 | Automated checks          | CONFIGURED — `.github/workflows/ci.yml` chạy syntax/import smoke check; chưa có `tests/` |
 
@@ -29,7 +29,6 @@
 | Cost semantics                         | Cần thống nhất trong nhóm             | `docs/api.md` §6.2; `bridge_cross_penalty` hiện chưa áp dụng |
 | Automated validation                  | Checkout chưa có test suite            | Bổ sung kiểm tra Engine, các solver, timeout và API trước nghiệm thu; CI hiện chỉ là smoke check |
 | `experiments/`                         | Benchmark 20 level GUI đã chạy          | Phân tích số liệu, bảng/biểu đồ và thảo luận trong report |
-| `main.py`                              | Chưa phải entrypoint                   | Dùng `python server.py` để chạy GUI cùng API          |
 
 ## 3. Delete-zone
 
@@ -44,6 +43,9 @@
 | `docs/Hướng dẫn UI.md`              | Trùng `gui_api.md` + `api.md`          | `docs/gui_api.md` §5–§8               | —                               |
 | `docs/plan.md`                      | Lịch đã lịch sử, trùng phân công      | Phụ lục của `docs/Mô tả công việc.md` | —                               |
 | `BENCHMARK_LEVELS.md`               | Trùng phần benchmark                   | `experiments/README.md` §Kết quả gần nhất | —                           |
+| `main.py`, `gui/app.py`, `gui/controller.py`, `gui/renderer.py`, `gui/__init__.py` | File rỗng, không dùng | `server.py`, `gui/index.html` | Chỉ khi thật sự làm GUI desktop |
+| `docs/h2 heuristic research.md`     | Phương án split-safe H2 không còn trong code | `docs/deep-research-report.md` §Điều chỉnh khi cài đặt | — |
+| H2 `split_aware=False`, `clear_h2_cache`, `Board.bridge_at/switch_at`, `board.Bridge/Switch/SwitchTarget`, `tiles.is_cell_supported`, `engine._ROLL_TABLE`, `HeuristicContext.split_switch_cells` | Không có chỗ gọi | H2 split-aware; `game/switches.py` | — |
 | `web/src/*.js` layout               | Chưa từng được tạo                     | Inline module trong `gui/index.html`  | Chỉ khi tách GUI thành module thật |
 
 ## 4. Nguyên tắc cần nhớ khi cập nhật status

@@ -32,7 +32,6 @@ game/                   # Python engine (owned by TV1/TV2)
 solvers/                # AI solvers (owned by TV3/TV4)
 gui/
 ├── index.html          # whole web GUI: inline ES module (API adapter, Three.js scene, controller, UI)
-└── app.py, controller.py, renderer.py   # empty placeholders, not used by the web GUI
 server.py               # FastAPI adapter at repo root; serves `/`, `/assets/*` and the API
 assets/                 # textures/models served at /assets/*
 levels/                 # shared level JSON files
@@ -587,7 +586,7 @@ Invariants that must not break:
 - Never treat a lying block or a split state as the goal.
 - Never drop `bridge_states` from history snapshots or HTTP requests.
 
-A Python-side GUI (e.g. a desktop app in `gui/app.py`) would follow the same rules by calling the engine directly:
+A Python-side GUI (e.g. a desktop app) would follow the same rules by calling the engine directly:
 
 ```python
 from game import Action, Engine, TransitionStatus, load_board

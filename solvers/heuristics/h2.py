@@ -1,13 +1,12 @@
 """H2: cost-aware relaxed pattern database cho Bloxorz.
 
 H2 giữ rolling geometry, orientation và static VOID topology, nhưng relax
-fragile/bridge/switch effects. Với ``split_aware=True``, abstract graph còn
-giữ vị trí hai cube sau split và các bước di chuyển của từng cube. Vì vậy
-heuristic không phải trả về 0 ngay khi concrete state đã split.
+fragile/bridge/switch effects. Abstract graph còn giữ vị trí hai cube sau
+split và các bước di chuyển của từng cube, nên heuristic không phải trả về 0
+khi concrete state đã split.
 
-Đồ thị được tính một lần bằng reverse Dijkstra. Khi ``split_aware=False``,
-module vẫn cung cấp baseline split-safe cũ: các split switch là pseudo-goal và
-mọi concrete split state có heuristic bằng 0.
+Đồ thị được tính một lần bằng reverse Dijkstra (xem
+``docs/deep-research-report.md``, Variant B và mục điều chỉnh khi cài đặt).
 """
 
 from __future__ import annotations
@@ -72,13 +71,10 @@ class H2Heuristic:
     preprocessing_seconds: float
     abstract_state_count: int
     abstract_edge_count: int
-    split_aware: bool = False
 
     def __call__(self, state: State) -> float:
         """Tra H2 cho concrete state."""
         if state.split_mode:
-            if not self.split_aware:
-                return 0.0
             if state.cube1_position is None or state.cube2_position is None:
                 return 0.0
             split_pair = _canonical_pair(state.cube1_position, state.cube2_position)
@@ -181,51 +177,7 @@ def _reverse_dijkstra(
     return distances
 
 
-@lru_cache(maxsize=32)
-def _build_h2_safe_cached(context: HeuristicContext) -> H2Heuristic:
-    """Bản baseline: split switch là pseudo-goal, split state trả 0."""
-    started = perf_counter()
-    poses = _enumerate_poses(context)
-    reverse: dict[AbstractState, list[tuple[AbstractState, float]]] = defaultdict(list)
-    edge_count = 0
-
-    for source in poses:
-        check_cancelled()
-        for action in _ROLL_ACTIONS:
-            result = roll_geometry(source.position, source.orientation, action)
-            if result is None:
-                continue
-
-            target_position, target_orientation = result
-            target = AbstractPose(target_position, target_orientation)
-            if target not in poses:
-                continue
-
-            weight = _edge_cost(source, context)
-            if weight < 0:
-                raise ValueError("H2 yêu cầu abstract edge cost không âm.")
-
-            reverse[target].append((source, weight))
-            edge_count += 1
-
-    targets = {AbstractPose(context.goal, Orientation.STANDING)}
-    targets.update(
-        AbstractPose(item.cell, Orientation.STANDING)
-        for item in context.split_switches
-    )
-    distances = _reverse_dijkstra(
-        frozenset(poses), reverse, frozenset(targets)
-    )
-    return H2Heuristic(
-        distances=distances,
-        preprocessing_seconds=perf_counter() - started,
-        abstract_state_count=len(poses),
-        abstract_edge_count=edge_count,
-        split_aware=False,
-    )
-
-
-def _build_split_aware_graph(
+def _build_abstract_graph(
     poses: frozenset[AbstractPose],
     context: HeuristicContext,
 ) -> tuple[
@@ -321,10 +273,10 @@ def _build_split_aware_graph(
 
 
 @lru_cache(maxsize=32)
-def _build_h2_split_aware_cached(context: HeuristicContext) -> H2Heuristic:
+def _build_h2_cached(context: HeuristicContext) -> H2Heuristic:
     started = perf_counter()
     poses = _enumerate_poses(context)
-    states, reverse, edge_count = _build_split_aware_graph(poses, context)
+    states, reverse, edge_count = _build_abstract_graph(poses, context)
     goal = AbstractPose(context.goal, Orientation.STANDING)
     distances = _reverse_dijkstra(states, reverse, frozenset({goal}))
     return H2Heuristic(
@@ -332,34 +284,14 @@ def _build_h2_split_aware_cached(context: HeuristicContext) -> H2Heuristic:
         preprocessing_seconds=perf_counter() - started,
         abstract_state_count=len(states),
         abstract_edge_count=edge_count,
-        split_aware=True,
     )
 
 
-def build_h2(
-    context: HeuristicContext,
-    *,
-    split_aware: bool = True,
-    use_cache: bool = True,
-) -> H2Heuristic:
+def build_h2(context: HeuristicContext) -> H2Heuristic:
     """Build H2 cho một level/cost config.
 
-    ``split_aware=True`` là bản đầy đủ và được A* dùng mặc định. Đặt
-    ``split_aware=False`` để tái tạo baseline split-safe trong benchmark.
     ``HeuristicContext`` hashable nên cache tự động phân biệt topology, goal,
     split targets và hai loại roll cost.
     """
     check_cancelled()
-    if split_aware:
-        if use_cache:
-            return _build_h2_split_aware_cached(context)
-        return _build_h2_split_aware_cached.__wrapped__(context)
-    if use_cache:
-        return _build_h2_safe_cached(context)
-    return _build_h2_safe_cached.__wrapped__(context)
-
-
-def clear_h2_cache() -> None:
-    """Xóa cache H2, chủ yếu dùng trong test/benchmark."""
-    _build_h2_safe_cached.cache_clear()
-    _build_h2_split_aware_cached.cache_clear()
+    return _build_h2_cached(context)

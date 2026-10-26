@@ -1,15 +1,7 @@
 """Gói game chứa logic cốt lõi của trò chơi Bloxorz."""
 
 from game.actions import Action, Orientation
-from game.board import (
-    Board,
-    Bridge,
-    Switch,
-    SwitchTarget,
-    TileType,
-    load_board,
-    parse_board,
-)
+from game.board import Board, TileType, load_board, parse_board
 from game.cost_config import DEFAULT_COST, CostConfig
 from game.engine import Engine, TransitionResult, TransitionStatus
 from game.heuristic_context import HeuristicContext, SplitSwitchContext
@@ -20,7 +12,6 @@ __all__ = [
     "DEFAULT_COST",
     "Action",
     "Board",
-    "Bridge",
     "BridgeMode",
     "BridgeStates",
     "Cell",
@@ -30,8 +21,6 @@ __all__ = [
     "Orientation",
     "SplitSwitchContext",
     "State",
-    "Switch",
-    "SwitchTarget",
     "SwitchType",
     "TileType",
     "TransitionResult",

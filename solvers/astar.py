@@ -26,8 +26,8 @@ def solve(
 ) -> SearchResult:
     """Tìm lời giải bằng A*.
 
-    Nếu không truyền heuristic, A* dùng H2 mặc định. Có thể truyền H0/H1/H2
-    khác nhau khi benchmark mà không thay đổi vòng lặp tìm kiếm.
+    Nếu không truyền heuristic, A* dùng H2 mặc định. Có thể truyền heuristic
+    khác (ví dụ H1) để so sánh mà không thay đổi vòng lặp tìm kiếm.
     """
     with cancellation_scope(cancel_event):
         check_cancelled()
@@ -54,7 +54,7 @@ def solve(
             estimate = (
                 heuristic
                 if heuristic is not None
-                else build_h2(engine.get_heuristic_context(), split_aware=True)
+                else build_h2(engine.get_heuristic_context())
             )
             preprocessing_time = (
                 perf_counter() - preprocessing_started if heuristic is None else 0.0

@@ -46,9 +46,9 @@ class Orientation(Enum):
 ### 2.4 Public Package Exports
 
 Consumers import from the top-level `game` package (defined in `game/__init__.py`):
-`Action`, `Board`, `Bridge`, `BridgeMode`, `BridgeStates`, `Cell`, `CostConfig`,
+`Action`, `Board`, `BridgeMode`, `BridgeStates`, `Cell`, `CostConfig`,
 `DEFAULT_COST`, `Engine`, `HeuristicContext`, `Orientation`, `SplitSwitchContext`,
-`State`, `Switch`, `SwitchTarget`, `SwitchType`, `TileType`, `TransitionResult`,
+`State`, `SwitchType`, `TileType`, `TransitionResult`,
 `TransitionStatus`, `load_board`, `occupied_cells`, `parse_board`.
 
 Solvers are imported from `solvers` (`solvers/__init__.py`): `solve_bfs`,
@@ -181,7 +181,7 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 
 `Engine` is constructed with an immutable `Board` (frozen dataclass) and exposes it as `engine.board`.
 
-`Board` is a frozen dataclass. Its level data is immutable; the derived lookup maps are read-only.
+`Board` is a frozen dataclass; its level data is immutable.
 
 | Field           | Type                               | Meaning                                                                                     |
 | --------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -192,30 +192,8 @@ When `status == FALL`, `state` remains `None`. `fall_state` carries the attempte
 | `bridges`       | `tuple[dict[str, Any], ...]`       | Raw bridge metadata records in input JSON order; deep-validated when the `Engine` is built. |
 | `switches`      | `tuple[dict[str, Any], ...]`       | Raw switch metadata records in input JSON order; deep-validated when the `Engine` is built. |
 | `name`          | `str`                              | Level name; defaults to `""`.                                                               |
-| `bridge_at`     | read-only `Mapping[Cell, Bridge]`  | Derived lookup from a bridge cell to its metadata (`Bridge`).                               |
-| `switch_at`     | read-only `Mapping[Cell, Switch]`  | Derived lookup from a switch cell to its metadata (`Switch`).                               |
 
-The metadata records are frozen dataclasses:
-
-```python
-@dataclass(frozen=True, slots=True)
-class Bridge:
-    id: str
-    cell: Cell
-    initial: str  # "open" or "closed"
-
-@dataclass(frozen=True, slots=True)
-class SwitchTarget:
-    bridge: str
-    mode: str  # "toggle", "permanent_open", or "permanent_closed"
-
-@dataclass(frozen=True, slots=True)
-class Switch:
-    cell: Cell
-    type: str  # "soft", "heavy", or "split"
-    targets: tuple[SwitchTarget, ...] = ()
-    split_cells: tuple[Cell, Cell] | None = None
-```
+Bridge/switch records stay raw dicts on `Board`. `build_mechanics(board)` in `game/switches.py` validates them and builds the internal `LevelMechanics` (`BridgeSpec`, `SwitchSpec`, `SwitchTarget(bridge_index, mode)`) that the Engine uses.
 
 `Board` methods:
 

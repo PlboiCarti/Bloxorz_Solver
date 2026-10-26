@@ -28,7 +28,3 @@ class HeuristicContext:
     stand_roll: float
     lie_roll: float
 
-    @property
-    def split_switch_cells(self) -> frozenset[Cell]:
-        """Tương thích với API baseline: chỉ lấy vị trí các split switch."""
-        return frozenset(item.cell for item in self.split_switches)

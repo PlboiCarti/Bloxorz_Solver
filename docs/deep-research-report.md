@@ -1,6 +1,61 @@
 # Thiết kế heuristic `h2` hoàn chỉnh cho Bloxorz Solver: Orientation-Aware Relaxed Shortest-Path
 
-> **Ghi chú đồng bộ implementation (2026-10-20):** Tài liệu này trình bày phương án nghiên cứu và lập luận cho các mô hình trừu tượng được mô tả bên dưới; nó không phải bằng chứng rằng heuristic đang chạy trong repo đã được chứng minh admissible/consistent. Code hiện tại dùng H2 split-aware tại `solvers/heuristics/h2.py`; cần kiểm tra riêng heuristic đó với transition và cost thực tế trước khi tuyên bố A* tối ưu. Một số đoạn trong báo cáo là các phương án nghiên cứu khác nhau, không phải tất cả cùng mô tả implementation hiện tại.
+> **Ghi chú đồng bộ (2026-10-26):** Đây là tài liệu nghiên cứu H2 duy nhất của repo. `solvers/heuristics/h2.py` cài **Variant B** (giữ split teleport và cặp cube) của báo cáo này. Trước khi trích dẫn, hãy đọc mục "Điều chỉnh khi cài đặt (đối chiếu với code)" ngay dưới đây. Mục đó ghi lại những chỗ code khác báo cáo (cost, kiến trúc) và cho biết phần nào dùng được cho report. Các ý còn dùng được từ tài liệu cũ `docs/h2 heuristic research.md` (đã xoá) cũng được chuyển vào mục này.
+
+## Điều chỉnh khi cài đặt (đối chiếu với code)
+
+### Phần của báo cáo mà code dùng
+
+| Báo cáo | Code (`solvers/heuristics/h2.py`) |
+| --- | --- |
+| \(\alpha(s)=(r,c,o)\) cho block thường | `AbstractPose(position, orientation)` |
+| \(\alpha(s)=\{p_1,p_2\}\) khi split, bỏ `active_cube` | `AbstractSplitPair(first, second)`, hai ô được sắp xếp canonical |
+| Relaxed support \(R\): mọi ô khác VOID; fragile = floor; bridge luôn mở; bỏ hiệu ứng soft/heavy | `HeuristicContext.support_cells` do `Engine.get_heuristic_context()` tạo |
+| Variant B: lăn đứng lên `P` → \(Q(t_1,t_2)\) với cost của cú lăn đó, không có cost teleport riêng | Cạnh trong `_build_abstract_graph`; nếu ô đích của split không thuộc \(R\) thì không tạo cạnh (concrete sẽ là `fall`) |
+| Khi split, cho phép di chuyển cube nào cũng được; hai cube kề nhau thì tự ghép lại, anchor ở trên-trái | `_abstract_split_state`, `_merged_pose`, khớp với `split_block.try_merge` |
+| Chỉ sinh các cặp cube đạt được từ `split_cells`, không lấy tích Descartes | Hàng đợi `pending` |
+| Reverse search một lần, tra bảng \(O(1)\) | `_reverse_dijkstra` + `lru_cache` theo `HeuristicContext` |
+| Abstract goal duy nhất là \(N(g_r,g_c,S)\) | `AbstractPose(goal, STANDING)` |
+
+### Chỗ code khác báo cáo
+
+1. **Cost không đồng nhất, dùng reverse Dijkstra thay cho BFS.** Lớp `LowerBoundCosts` trong báo cáo mặc định cost bằng 1.0. Code thì đặt trọng số cạnh **đúng bằng** `Engine.step_cost` với `CostConfig` mặc định:
+   - lăn khi state nguồn đang `STANDING`: `stand_roll = 1.5`;
+   - lăn khi state nguồn đang nằm: `lie_roll = 1.0`;
+   - di chuyển một cube khi split: `stand_roll = 1.5`, vì concrete split state luôn có `orientation = STANDING`;
+   - `SWITCH_CUBE` (0.1): không có cạnh, vì abstract state không đổi khi đổi cube điều khiển (cặp cube không có thứ tự). Do đó \(h(s)=h(s')\le 0.1+h(s')\);
+   - `bridge_cross_penalty = 0.3` chưa được Engine dùng nên cũng không có trong H2.
+
+   Tính cost cạnh theo orientation của state **nguồn** là cần thiết: nếu chỉ đếm số bước rồi nhân với \(\min(1.5, 1.0) = 1.0\) thì heuristic vẫn an toàn nhưng yếu hơn.
+2. **Kiến trúc.** Báo cáo dùng adapter cho các repo khác (`Problem.result()`, Erroler). Repo này không có các adapter đó. Solver không đọc `engine.board`; Engine cung cấp snapshot bất biến `HeuristicContext(support_cells, goal, split_switches, stand_roll, lie_roll)`. A* dựng H2 một lần cho mỗi level và báo thời gian dựng riêng trong `SearchResult.preprocessing_time`, đúng như gợi ý ở mục "Preprocessing có tính vào Search Time không?".
+3. **Fallback về 0 cho ngõ cụt.** `H2Heuristic.__call__` trả `0` cả khi state không có trong bảng lẫn khi khoảng cách là \(\infty\). State có \(d_lpha=\infty\) là **ngõ cụt thật**: ngay trên đồ thị nới lỏng cũng không tới được goal, nên concrete càng không tới được. Fallback này giữ admissibility (\(0\le h^*=\infty\)) nhưng **làm mất consistency** ở các cạnh đi vào ngõ cụt (xem mục kiểm chứng bên dưới).
+4. **A\*** giữ `best_cost` (g-score) để loại bản ghi cũ; heuristic không được dùng làm điều kiện visited.
+
+### Vì sao chứng minh của báo cáo áp dụng được cho code
+
+Với mọi transition concrete `OK` \(s \xrightarrow{a} s'\), có hai trường hợp:
+
+- \(\alpha(s)\to\alpha(s')\) là một cạnh abstract có cost bằng `step_cost(s, a, s')`. Các trường hợp: lăn thường, lăn lên `P` rồi split/merge, di chuyển cube rồi merge.
+- \(\alpha(s)=\alpha(s')\) khi `SWITCH_CUBE`. Bật/tắt bridge không làm đổi \(\alpha\).
+
+Vì vậy \(h(s)\le c(s,a,s')+h(s')\) (consistent), và \(h(\text{goal})=0\), nên \(h\) cũng admissible. Đây đúng là lập luận ở mục "Chứng minh admissibility/consistency" bên dưới, chỉ thay "abstract cost ≤ concrete cost" bằng "abstract cost = concrete cost". Lập luận này đúng cho \(d_lpha\) (khi giữ nguyên \(\infty\)). Hàm trong code lệch khỏi nó đúng một chỗ: fallback \(\infty	o 0\) ở điểm 3.
+
+**Kiểm chứng thực nghiệm (2026-10-26).** Duyệt BFS toàn bộ state đạt được của 20 level (314.193 cạnh `OK`), kiểm tra \(h(s)\le c(s,a,s')+h(s')\) và \(h(	ext{goal})=0\):
+
+- 18/20 level: 0 vi phạm.
+- `level15`: 60 vi phạm; `level17`: 24 vi phạm. Tất cả đều là cạnh **ghép khối** (split → merge) đi vào một pose ngõ cụt (`level15`: \((3,3)\) HORIZONTAL; `level17`: \((6,1)\) VERTICAL), nơi \(d_lpha=\infty\) nhưng code trả 0.
+- \(h(	ext{goal})=0\) ở mọi goal state; A\* cho cùng total cost với UCS trên cả 20 level (`experiments/results.csv`).
+
+Viết vào report: H2 **admissible** trên mọi level, nên A\* (có cập nhật lại `best_cost`, tức cho phép reopen) vẫn tối ưu. H2 **consistent** ở mọi cạnh không đi vào ngõ cụt. Nếu sửa code để giữ \(\infty\) (và bỏ qua không đưa vào frontier các state có \(h=\infty\)), H2 sẽ consistent hoàn toàn.
+
+### Baseline H1
+
+`solvers/heuristics/h1.py`: \(h_1=\lceil \text{Manhattan(anchor, goal)}/2 \rceil\), và bằng 0 khi split. H1 chỉ dùng để so sánh với H2. Trên level có split switch, H1 **không được** dùng làm bằng chứng admissibility, vì teleport có thể đưa khối tới gần goal rẻ hơn khoảng cách Manhattan.
+
+### Phần nên dùng / bỏ khi viết report
+
+- **Dùng:** Tóm tắt điều hành; Định nghĩa toán học và các giả định; Variant B và "Soft/heavy switches khi split"; Preprocessing bằng reverse search và ví dụ corridor; Độ phức tạp; Chứng minh admissibility/consistency; "Tại sao fragile có thể bỏ?", "Tại sao bridges phải luôn open?", "Non-uniform costs", "Negative cost", "`active_cube`"; "Benchmark theo đúng rubric" và "Preprocessing có tính vào Search Time không?"; "Công thức nên viết trong report cuối cùng". Ghép thêm các điều chỉnh về cost ở mục này.
+- **Bỏ hoặc chỉ tham khảo:** "Cài đặt Python hoàn chỉnh", "Cách build `AbstractLevel`", "Integration với `Problem.result()`" (code thật nằm ở `h2.py`); các mục về teleport riêng (repo không có ô teleport, chỉ có split switch); Variant A khi đứng một mình; "Tích hợp với các repo tham khảo". Ngoài ra cần xoá các dấu trích nguồn tự động bị lỗi (`fileciteturn…`, `citeturn…`) trước khi đưa vào report.
 
 ## Tóm tắt điều hành
 

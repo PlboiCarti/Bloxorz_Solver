@@ -37,44 +37,6 @@ _CHAR_TO_TILE_TYPE: dict[str, TileType] = {
 
 
 @dataclass(frozen=True, slots=True)
-class Bridge:
-    """Metadata công khai của một ô cầu (theo `docs/api.md` §4.2)."""
-
-    id: str
-    cell: Cell
-    initial: str  # "open" hoặc "closed"
-
-
-@dataclass(frozen=True, slots=True)
-class SwitchTarget:
-    """Một cầu mục tiêu của công tắc cùng chế độ tác động (theo `docs/api.md` §4.2)."""
-
-    bridge: str
-    mode: str  # "toggle" | "permanent_open" | "permanent_closed"
-
-
-@dataclass(frozen=True, slots=True)
-class Switch:
-    """Metadata công khai của một công tắc (theo `docs/api.md` §4.2)."""
-
-    cell: Cell
-    type: str  # "soft" | "heavy" | "split"
-    targets: tuple[SwitchTarget, ...] = ()
-    split_cells: tuple[Cell, Cell] | None = None
-
-
-def _as_cell(value: Any) -> Cell | None:
-    """Chuyển [r, c] thành Cell nếu hợp lệ, ngược lại trả về None."""
-    if (
-        isinstance(value, (list, tuple))
-        and len(value) == 2
-        and all(isinstance(v, int) and not isinstance(v, bool) for v in value)
-    ):
-        return (value[0], value[1])
-    return None
-
-
-@dataclass(frozen=True, slots=True)
 class Board:
     """Biểu diễn dữ liệu bản đồ bất biến.
 
@@ -110,45 +72,6 @@ class Board:
         if not self.in_bounds(cell):
             raise IndexError(f"Tọa độ {cell} nằm ngoài giới hạn bảng ({self.rows}x{self.cols}).")
         return self.grid[cell[0]][cell[1]]
-
-    @property
-    def bridge_at(self) -> dict[Cell, Bridge]:
-        """Ánh xạ ô cầu -> metadata cầu (bỏ qua mục thiếu tọa độ/id)."""
-        result: dict[Cell, Bridge] = {}
-        for raw in self.bridges:
-            bridge_id = raw.get("id")
-            cell = _as_cell(raw.get("cell"))
-            if isinstance(bridge_id, str) and cell is not None:
-                result[cell] = Bridge(
-                    id=bridge_id, cell=cell, initial=str(raw.get("initial", ""))
-                )
-        return result
-
-    @property
-    def switch_at(self) -> dict[Cell, Switch]:
-        """Ánh xạ ô công tắc -> metadata công tắc (bỏ qua mục thiếu tọa độ/type)."""
-        result: dict[Cell, Switch] = {}
-        for raw in self.switches:
-            switch_type = raw.get("type")
-            cell = _as_cell(raw.get("cell"))
-            if not isinstance(switch_type, str) or cell is None:
-                continue
-            raw_targets = raw.get("targets", [])
-            targets: tuple[SwitchTarget, ...] = ()
-            if isinstance(raw_targets, list):
-                targets = tuple(
-                    SwitchTarget(bridge=str(t.get("bridge")), mode=str(t.get("mode")))
-                    for t in raw_targets
-                    if isinstance(t, dict)
-                )
-            c1 = _as_cell((raw.get("split_cells") or [None, None])[0])
-            c2 = _as_cell((raw.get("split_cells") or [None, None])[1])
-            split_cells = (c1, c2) if c1 is not None and c2 is not None else None
-            result[cell] = Switch(
-                cell=cell, type=switch_type, targets=targets, split_cells=split_cells
-            )
-        return result
-
 
 def parse_board(data: dict[str, Any]) -> Board:
     """Phân tích cú pháp và kiểm thực (validate) dữ liệu bản đồ từ từ điển dict.

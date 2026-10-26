@@ -7,7 +7,7 @@ from game import split_block
 from game.actions import Action, Orientation
 from game.board import Board, TileType
 from game.cost_config import DEFAULT_COST, CostConfig
-from game.geometry import ROLL_TABLE, roll_geometry
+from game.geometry import roll_geometry
 from game.heuristic_context import HeuristicContext, SplitSwitchContext
 from game.state import Cell, State
 from game.switches import SwitchType, apply_targets, build_mechanics, is_triggered
@@ -50,11 +50,6 @@ _ACTION_ORDER: tuple[Action, ...] = (
     Action.RIGHT,
     Action.SWITCH_CUBE,
 )
-
-# Giữ alias private để các module/test cũ không bị vỡ, nhưng source of truth
-# cho rolling geometry hiện nằm ở game.geometry.
-_ROLL_TABLE = ROLL_TABLE
-
 
 class Engine:
     """Game Engine chịu trách nhiệm thực thi toàn bộ luật chơi Bloxorz."""

@@ -67,7 +67,7 @@ requirements.txt              # dependency runtime
 docs/                         # API, GUI handoff và status
 ```
 
-`main.py` hiện không phải entrypoint. Dùng `python server.py` để chạy GUI/API.
+Entrypoint duy nhất là `python server.py` (chạy GUI cùng API).
 
 ## Level JSON
 
