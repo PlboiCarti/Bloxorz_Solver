@@ -1,0 +1,65 @@
+{
+  "name": "level9 - split, cube opens bridge",
+  "grid": [
+    "#####............",
+    "#S#P#..###..#####",
+    "#####..#o#BB##G##",
+    ".......###..#####",
+    "............#####"
+  ],
+  "bridges": [
+    {
+      "id": "B1",
+      "cell": [
+        2,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        2,
+        11
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        2,
+        8
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        1,
+        3
+      ],
+      "type": "split",
+      "targets": [],
+      "split_cells": [
+        [
+          1,
+          7
+        ],
+        [
+          4,
+          16
+        ]
+      ]
+    }
+  ]
+}

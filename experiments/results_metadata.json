@@ -1,0 +1,26 @@
+{
+  "run_id": "20261026T065916Z",
+  "timestamp_utc": "2026-10-26T06:59:33.299000+00:00",
+  "dataset_path": "experiments/test_set.json",
+  "dataset_version": 3,
+  "case_count": 120,
+  "algorithms": [
+    "BFS",
+    "DFS",
+    "UCS",
+    "A*"
+  ],
+  "repeat": 1,
+  "timeout_seconds_per_solver_case": 15.0,
+  "python_version": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "result_csv": "experiments/results.csv",
+  "metric_notes": {
+    "search_time_seconds": "Solver-reported search time in seconds; A* excludes heuristic preprocessing.",
+    "preprocessing_time_seconds": "A* H2 build time, recorded separately; the H2 cache is cleared before every run.",
+    "peak_memory_mb": "Peak tracemalloc memory in decimal MB as reported by the solver.",
+    "expanded_nodes": "Solver's expanded-state counter; goal state is not counted.",
+    "solution_length": "Number of actions in the returned path; blank when no solution.",
+    "total_cost": "Sum of Engine.step_cost along the returned path; blank when no solution."
+  }
+}

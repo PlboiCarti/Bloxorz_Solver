@@ -1,0 +1,170 @@
+{
+  "name": "level17 - split blocks & bridge network",
+  "grid": [
+    "............###",
+    "..###BB###BB###",
+    "..###..oS#..###",
+    "..###..###.....",
+    "..#o#..P#o.....",
+    "..###..###.....",
+    "####...###BBo##",
+    "#o..........###",
+    "............#G#",
+    "............###"
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        1,
+        5
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        6
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        1,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        1,
+        11
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C1",
+      "cell": [
+        6,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "C2",
+      "cell": [
+        6,
+        11
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        2,
+        7
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        4,
+        3
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        4,
+        9
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        6,
+        12
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "C1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "C2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        7,
+        1
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        4,
+        7
+      ],
+      "type": "split",
+      "targets": [],
+      "split_cells": [
+        [
+          1,
+          13
+        ],
+        [
+          7,
+          13
+        ]
+      ]
+    }
+  ]
+}

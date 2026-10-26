@@ -1,0 +1,78 @@
+{
+  "name": "level18 - fragile walkway & heavy switches",
+  "grid": [
+    "###....########",
+    "#S#########..##",
+    "###....##....##",
+    "............#x#",
+    "............##.",
+    "###..FFFF#..oo.",
+    "#G#FFFFFFF..###",
+    "###FFFFFFFFF###",
+    ".....FFFFFFF###",
+    "......B##B....."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        9,
+        6
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        9,
+        9
+      ],
+      "initial": "open"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        3,
+        13
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        12
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        13
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        }
+      ]
+    }
+  ]
+}

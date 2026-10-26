@@ -1,0 +1,127 @@
+{
+  "name": "level7 - heavy (permanent) + soft (toggle)",
+  "grid": [
+    "##x#............",
+    "#S##BB####..###.",
+    "####BB##o#BB#G#.",
+    "..........BB###."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        1,
+        4
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        1,
+        5
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A3",
+      "cell": [
+        2,
+        4
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A4",
+      "cell": [
+        2,
+        5
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        2,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        2,
+        11
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B3",
+      "cell": [
+        3,
+        10
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B4",
+      "cell": [
+        3,
+        11
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        0,
+        2
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A2",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A3",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "A4",
+          "mode": "permanent_open"
+        }
+      ]
+    },
+    {
+      "cell": [
+        2,
+        8
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B3",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B4",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}

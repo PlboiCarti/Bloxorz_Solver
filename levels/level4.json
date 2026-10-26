@@ -1,0 +1,12 @@
+{
+  "name": "level4 - fragile strip",
+  "grid": [
+    "####........",
+    "#S##FFFF.###",
+    "####FFFF####",
+    "####FFFF##G#",
+    "........####"
+  ],
+  "bridges": [],
+  "switches": []
+}

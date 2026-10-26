@@ -1,0 +1,2106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>Bloxorz 3D — GUI Prototype</title>
+  <style>
+    :root {
+      --ink: #172238;
+      --muted: #708096;
+      --panel: #ffffff;
+      --line: #e4eaf1;
+      --bg: #f3f6fa;
+      --accent: #087f8c;
+      --accent-dark: #075c68;
+      --gold: #eebc55;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+    header { min-height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo { width: 38px; height: 38px; border-radius: 11px; background: var(--accent); color: white; display: grid; place-items: center; font-weight: 850; box-shadow: 0 6px 15px #087f8c2a; }
+    .brand h1 { font-size: 17px; line-height: 1.15; margin: 0; letter-spacing: -.025em; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .header-right { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+    .pill { background: #e9f7f7; color: var(--accent-dark); border: 1px solid #cfeeed; border-radius: 999px; padding: 6px 10px; font-weight: 700; white-space: nowrap; }
+    main { width: min(1420px, 100%); margin: 0 auto; padding: 20px; display: grid; grid-template-columns: minmax(0,1fr) 310px; gap: 18px; flex: 1; }
+    .viewport-card, .side-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 8px 30px #20304a08; }
+    .viewport-card { display: flex; flex-direction: column; min-height: 610px; }
+    .view-heading { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+    .view-heading h2 { margin: 0; font-size: 14px; }
+    .view-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .view-hint { color: var(--muted); font-size: 11px; text-align: right; }
+    #stage { position: relative; flex: 1; min-height: 500px; background: radial-gradient(ellipse at 50% 38%, #fbfdff 0%, #eef3f8 72%, #e8eef5 100%); }
+    #stage canvas { width: 100%; height: 100%; display: block; outline: none; }
+    .stage-label { position: absolute; pointer-events: none; left: 16px; bottom: 14px; background: #ffffffd9; border: 1px solid #e0e7ee; padding: 8px 11px; border-radius: 10px; color: #5b6a80; font-size: 11px; backdrop-filter: blur(8px); }
+    .stage-label strong { color: var(--ink); }
+    aside { display: flex; flex-direction: column; gap: 14px; }
+    .side-card { padding: 17px; }
+    .side-card h2 { font-size: 14px; margin: 0 0 13px; }
+    .status-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #eef1f5; font-size: 12px; }
+    .status-line:first-of-type { border-top: none; padding-top: 0; }
+    .status-line span { color: var(--muted); }
+    .status-line strong { text-align: right; font-weight: 750; }
+    .status-message { margin-top: 12px; padding: 10px 11px; background: #f1f7fa; border: 1px solid #e0edf1; border-radius: 10px; font-size: 12px; line-height: 1.4; color: #365367; min-height: 38px; }
+    button { border: 1px solid #dce4ed; border-radius: 10px; background: white; color: var(--ink); min-height: 40px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; transition: background .15s, transform .15s, border-color .15s; }
+    button:hover:not(:disabled) { border-color: #9bbfc7; background: #f5fbfc; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .primary { width: 100%; color: white; background: var(--accent); border-color: var(--accent); }
+    .primary:hover:not(:disabled) { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .button-row { display: flex; gap: 8px; margin-top: 9px; }
+    .button-row button { flex: 1; }
+    .legend { display: flex; flex-wrap: wrap; gap: 9px 12px; color: var(--muted); font-size: 11px; }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .note { margin: 11px 0 0; color: var(--muted); line-height: 1.5; font-size: 11px; }
+    footer { padding: 0 24px 16px; color: #8490a1; font-size: 11px; text-align: center; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px; } .viewport-card { min-height: 550px; } #stage { min-height: 440px; } aside { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); } .side-card:last-child { grid-column: 1 / -1; } }
+    @media (max-width: 580px) { header { padding: 12px; } .header-right { display:none; } main { padding: 9px; gap: 10px; } .viewport-card { min-height: 490px; } #stage { min-height: 380px; } aside { display:flex; } .view-hint { display:none; } }
+
+    /* Full-screen tropical game HUD inspired by RollingCat-3D's reference art. */
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body { background: #52d7eb; }
+    .app { position: relative; width: 100%; height: 100svh; min-height: 520px; overflow: hidden; }
+    header {
+      position: absolute; z-index: 4; inset: 0 0 auto; height: 136px; min-height: 0;
+      display: block; padding: 0; border: 0; background: linear-gradient(180deg,rgba(104,226,244,.84),rgba(104,226,244,0));
+      pointer-events: none;
+    }
+    .level-hud { position: absolute; top: 34px; left: 50%; max-width: 56vw; overflow: hidden; transform: translateX(-50%); color: #594d32; font-size: clamp(20px,3vw,32px); line-height: 1.05; font-weight: 950; letter-spacing: .035em; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 2px 0 #fff0b7; }
+    .board-hud { position: absolute; top: 16px; right: 20px; color: #fff8dc; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px #176275; }
+    #reset.restart-button {
+      position: absolute; top: 48px; right: 16px; z-index: 5; min-height: 34px;
+      padding: 4px 10px; border: 1px solid #f7e18a; border-radius: 10px;
+      background: #fff0b9ed; color: #5d4c24; font-size: 10px; font-weight: 900;
+      box-shadow: 0 3px 9px #15526335; pointer-events: auto;
+    }
+    #reset.restart-button:hover:not(:disabled) { background: #fff9dd; }
+    main { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; margin: 0; padding: 0; }
+    .viewport-card { position: absolute; inset: 0; display: block; min-height: 0; border: 0; border-radius: 0; overflow: hidden; background: transparent; box-shadow: none; }
+    .view-heading { display: none; }
+    #stage { position: absolute; inset: 0; min-height: 0; overflow: hidden; background: linear-gradient(#6ddff0,#28c4df); }
+    #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    .stage-label { z-index: 3; left: 50%; bottom: clamp(70px, 11vh, 110px); transform: translateX(-50%); width: max-content; max-width: 58vw; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff1a8; text-align: center; text-shadow: 0 2px 2px #294f4e, 1px 0 #294f4e, -1px 0 #294f4e; backdrop-filter: none; }
+    .stage-label strong { display: block; color: inherit; font-size: clamp(22px,3.5vw,36px); line-height: 1.05; letter-spacing: .015em; font-weight: 950; }
+    .stage-label span { display: block; margin-top: 4px; color: #fff9db; font-size: 11px; font-weight: 700; }
+    .tile-legend {
+      position: absolute; z-index: 3; top: 48px; left: 20px; display: flex;
+      flex-wrap: wrap; gap: 6px; max-width: min(440px, 48vw); padding: 8px 10px;
+      border: 1px solid #fff4c7aa; border-radius: 12px; background: #fff0b9df;
+      color: #5d4c24; box-shadow: 0 4px 14px #15526325; font-size: 10px;
+      font-weight: 750; pointer-events: none;
+    }
+    .tile-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .tile-legend .ic { width: 20px; height: 20px; flex: none; }
+    .game-controls { position: absolute; z-index: 5; right: 20px; bottom: 18px; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(420px, calc(100vw - 40px)); max-height: none; overflow: visible; pointer-events: auto; }
+    .side-card { border: 1px solid #fff4c7aa; border-radius: 18px; background: #fff0b9df; padding: 11px; box-shadow: 0 5px 18px #15526335; backdrop-filter: blur(8px); }
+    .state-hud { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; flex: 0 0 auto; }
+    .state-hud div { min-width: 0; display: grid; gap: 3px; text-align: center; }
+    .state-hud span { color: #806a38; font-size: 8px; font-weight: 850; letter-spacing: .06em; }
+    .state-hud strong { overflow: hidden; color: #483d28; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .input-hud { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; height: auto; min-height: 0; flex: 0 0 auto; max-height: none; gap: 8px 10px; overflow: visible; padding: 14px; }
+    .input-hud h2 { margin: 0; color: #796334; font-size: 12px; text-align: center; letter-spacing: .12em; }
+    button { border-color: #e7c95c; color: #5d4c24; background: #fff8d8; min-height: 34px; font-size: 9px; box-shadow: 0 2px 0 #d3ad43; }
+    button:hover:not(:disabled) { border-color: #f3a92a; background: #fffdf0; }
+    .button-row { gap: 7px; margin-top: 10px; }
+    .button-row button { min-height: 36px; padding: 3px 6px; font-size: 10px; }
+    .solver-actions { margin-top: 5px; }
+    .solver-actions #solve { min-height: 38px; font-size: 11px; letter-spacing: .04em; }
+    .select-row { display: grid; grid-template-columns: 1fr; min-width: 0; gap: 4px; margin-top: 0; color: #796334; font-size: 10px; font-weight: 800; }
+    .select-row select { width: 100%; min-width: 0; min-height: 34px; padding: 5px 8px; border: 1px solid #e7c95c; border-radius: 8px; background: #fff8d8; color: #5d4c24; font: inherit; font-size: 11px; }
+    .solver-panel { position: absolute; z-index: 4; left: 20px; bottom: 20px; width: 220px; pointer-events: none; }
+    .solver-panel h3 { margin: 0 0 4px; color: #796334; font-size: 9px; text-align: center; letter-spacing: .1em; }
+    .solver-table { width: 100%; border-collapse: collapse; color: #594a2b; font-size: 8px; text-align: left; }
+    .solver-table th { padding: 2px 3px; color: #806a38; font-size: 7px; letter-spacing: .04em; }
+    .solver-table td { padding: 2px 3px; border-top: 1px solid #e8d99d88; font-weight: 800; }
+    .solver-table td:last-child { text-align: right; }
+    .solver-status { display: inline-block; padding: 2px 5px; border-radius: 8px; background: #eee2b5; color: #806a38; white-space: nowrap; }
+    .solver-metrics { margin-top: 6px; color: #5d4c24; font-size: 12px; line-height: 1.3; white-space: pre-line; }
+    .solver-metrics[data-solved="true"] { color: #176b37; }
+    .solver-metrics[data-solved="false"] { color: #a12f2f; }
+    .input-hud .solver-metrics { display: none; }
+    .replay-controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 6px; }
+    .replay-controls button { min-width: 0; min-height: 25px; padding: 1px; font-size: 9px; }
+    .speed-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 5px; margin-top: 5px; color: #796334; font-size: 8px; font-weight: 750; }
+    .speed-row input { width: 100%; height: 12px; accent-color: #d17b11; }
+    #stage.blocked-feedback { animation: blocked-shake 180ms ease-in-out; }
+    @keyframes blocked-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    #stage.victory-feedback { animation: victory-flash 420ms ease-out; }
+    @keyframes victory-flash { 40% { filter: brightness(1.14) saturate(1.18); } }
+    .primary, .primary:hover:not(:disabled) { color: #fff9dc; background: #e99520; border-color: #d17b11; }
+    .status-message { display: block; min-height: 0; margin-top: 4px; padding: 0; border: 0; background: transparent; color: #fff9dd; font-size: 11px; font-weight: 750; line-height: 1.25; text-shadow: 0 1px 3px #23525b; }
+    footer { display: none; }
+    @media (max-width: 700px) {
+      .level-hud { top: 27px; max-width: 50vw; font-size: clamp(17px,5vw,23px); }
+      .board-hud { top: 13px; right: 12px; }
+      #reset.restart-button { top: 42px; right: 10px; min-height: 31px; padding: 3px 8px; font-size: 9px; }
+      .game-controls { right: 10px; bottom: 11px; width: min(340px, calc(100vw - 20px)); gap: 6px; align-items: stretch; }
+      .state-hud { display: none; }
+      .input-hud { width: 100%; flex-basis: auto; padding: 10px; }
+      .solver-panel { left: 10px; bottom: 10px; width: 158px; padding: 8px; }
+      .stage-label { left: auto; right: 10px; bottom: clamp(100px, 18vh, 150px); transform: none; max-width: calc(100vw - 190px); text-align: right; }
+      .stage-label span { max-width: 34vw; }
+      .tile-legend { top: 42px; left: 10px; gap: 4px; max-width: 205px; padding: 6px; font-size: 8px; }
+      .tile-legend .ic { width: 16px; height: 16px; }
+    }
+
+    /* Keep every control visible in the panel without an inner scrollbar. */
+    .input-hud > h2,
+    .input-hud > #solver-metrics,
+    .input-hud > .replay-controls,
+    .input-hud > .speed-row,
+    .input-hud > .button-row:last-child {
+      grid-column: 1 / -1;
+    }
+    .input-hud > .solver-actions { grid-column: 1; }
+    .input-hud > .button-row:not(.solver-actions) { grid-column: 2; }
+    .input-hud > .button-row:last-child { grid-column: 1 / -1; }
+    .input-hud .button-row { min-width: 0; gap: 6px; margin-top: 0; }
+    .input-hud .button-row button { min-width: 0; min-height: 34px; padding: 3px 5px; }
+    .input-hud .solver-actions #solve { min-height: 36px; }
+    .input-hud .solver-metrics,
+    .input-hud .replay-controls,
+    .input-hud .speed-row { margin-top: 0; }
+
+    /* Shorter laptop / browser windows: tighten vertical spacing automatically. */
+    @media (max-height: 760px) {
+      .game-controls { bottom: 10px; gap: 6px; }
+      .state-hud { padding: 8px; }
+      .input-hud { padding: 10px; gap: 4px 8px; }
+      .input-hud h2 { font-size: 11px; margin: 0; }
+      .select-row { gap: 3px; }
+      .select-row select { min-height: 30px; padding: 4px 6px; }
+      .input-hud .button-row button { min-height: 29px; font-size: 9px; }
+      .input-hud .solver-actions #solve { min-height: 31px; font-size: 10px; }
+      .replay-controls { gap: 3px; }
+      .replay-controls button { min-height: 22px; }
+      .solver-metrics { font-size: 11px; line-height: 1.2; }
+      .speed-row { gap: 4px; }
+    }
+    @media (max-height: 620px) and (min-width: 701px) {
+      .state-hud { display: none; }
+      .game-controls { bottom: 7px; }
+      .input-hud { padding: 8px; gap: 5px 7px; }
+      .select-row { font-size: 9px; }
+      .select-row select { min-height: 27px; font-size: 9px; }
+      .input-hud .button-row button { min-height: 26px; font-size: 8px; }
+      .input-hud .solver-actions #solve { min-height: 28px; }
+      .replay-controls button { min-height: 20px; }
+    }
+    @media (max-width: 700px) {
+      .select-row select { font-size: 10px; }
+    }
+    @media (max-width: 580px) {
+      .game-controls { width: min(320px, calc(100vw - 20px)); }
+      .input-hud { gap: 6px; }
+      .input-hud .button-row { gap: 5px; }
+      .input-hud .button-row button { font-size: 8px; }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="level-hud">LEVEL 1</div>
+    <div class="board-hud">7 × 7</div>
+    <button id="reset" class="restart-button" aria-label="Restart level">↺ RESTART</button>
+  </header>
+
+  <main>
+    <section class="viewport-card">
+      <div class="view-heading">
+        <div><h2>Bàn chơi 3D</h2><p>Kéo chuột để xoay góc nhìn · cuộn chuột để zoom</p></div>
+        <div class="view-hint">Phím: ↑ ↓ ← → hoặc W A S D</div>
+      </div>
+      <div id="stage">
+        <div class="tile-legend" aria-label="Chú giải ô đặc biệt">
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e7ad50" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="8" fill="none" stroke="#fff1a8" stroke-width="2.4"/><circle cx="12" cy="12" r="4.8" fill="#f06b25"/></svg>Đích</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#f09a35" stroke="#806a38" stroke-width="1"/><path d="M5 7 L10 12 L15 9 M10 12 L18 18" fill="none" stroke="#754837" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Ô dễ vỡ (nứt)</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#806a38" stroke-dasharray="2 2"/><rect x="3.5" y="2" width="3" height="20" rx="1" fill="#a94d42"/><rect x="17.5" y="2" width="3" height="20" rx="1" fill="#a94d42"/><path d="M7 7 L17 17 M17 7 L7 17" stroke="#a94d42" stroke-width="2.6" stroke-linecap="round"/></svg>Cầu đóng</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#74d77a" stroke="#806a38" stroke-width="1"/></svg>Cầu mở</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M12 5.5 L17.5 12 L12 18.5 L6.5 12 Z" fill="#29c7cb"/></svg>Công tắc mềm</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M7 7 L17 17 M17 7 L7 17" stroke="#e75d34" stroke-width="3" stroke-linecap="round"/></svg>Công tắc nặng</span>
+          <span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="3" fill="#e9d3a0" stroke="#806a38" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="#8a6a45"/><path d="M10 7.5 A4.5 4.5 0 0 0 10 16.5 M14 7.5 A4.5 4.5 0 0 1 14 16.5" fill="none" stroke="#9160d9" stroke-width="2.4" stroke-linecap="round"/></svg>Công tắc tách</span>
+        </div>
+        <section class="side-card solver-panel" aria-labelledby="solver-heading">
+          <h3 id="solver-heading">SOLVERS · SẴN SÀNG</h3>
+          <table class="solver-table" aria-label="Trạng thái các thuật toán tìm kiếm">
+            <thead><tr><th>THUẬT TOÁN</th><th>TRẠNG THÁI</th></tr></thead>
+            <tbody>
+              <tr><td>BFS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>DFS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>UCS</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+              <tr><td>A*</td><td><span class="solver-status">Sẵn sàng</span></td></tr>
+            </tbody>
+          </table>
+        </section>
+        <div class="stage-label" aria-live="polite">
+          <strong id="stage-prompt">SWIPE TO START</strong>
+          <span id="status-message">Chạm vuốt để di chuyển · WASD hoặc phím mũi tên</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="game-controls">
+      <section class="side-card state-hud" aria-label="Trạng thái khối">
+        <div><span>VỊ TRÍ</span><strong id="position">(3, 3)</strong></div>
+        <div><span>HƯỚNG</span><strong id="orientation">Đứng thẳng</strong></div>
+        <div><span>BƯỚC</span><strong id="move-count">0</strong></div>
+      </section>
+
+      <section class="side-card input-hud">
+        <h2>DI CHUYỂN</h2>
+        <label class="select-row" for="level-select">MÀN
+          <select id="level-select" disabled aria-label="Chọn màn chơi"></select>
+        </label>
+        <label class="select-row" for="algorithm-select">THUẬT TOÁN
+          <select id="algorithm-select" aria-label="Chọn thuật toán tìm kiếm">
+            <option value="BFS">BFS</option>
+            <option value="DFS">DFS</option>
+            <option value="UCS">UCS</option>
+            <option value="ASTAR">A*</option>
+          </select>
+        </label>
+        <div class="button-row solver-actions">
+          <button id="solve" class="primary" aria-label="Tìm lời giải bằng solver Python" title="Tìm lời giải bằng solver Python">▶ SOLVE</button>
+        </div>
+        <div class="button-row">
+          <button id="new-game">NEW GAME</button>
+          <button id="undo" disabled>UNDO</button>
+        </div>
+        <div id="solver-metrics" class="solver-metrics" aria-live="polite"></div>
+        <div class="replay-controls" aria-label="Điều khiển phát lại lời giải">
+          <button id="replay-first" disabled aria-label="Về đầu lời giải" title="Về đầu">⏮</button>
+          <button id="replay-back" disabled aria-label="Lùi một bước" title="Lùi một bước">◀</button>
+          <button id="replay-toggle" disabled aria-label="Phát hoặc tạm dừng" title="Phát / Tạm dừng">▶</button>
+          <button id="replay-forward" disabled aria-label="Tiến một bước" title="Tiến một bước">▶</button>
+          <button id="replay-last" disabled aria-label="Tới cuối lời giải" title="Tới cuối">⏭</button>
+        </div>
+        <label class="speed-row" for="replay-speed"><span>TỐC ĐỘ</span><input id="replay-speed" type="range" min="100" max="1000" step="100" value="400"><output id="replay-speed-value">0.4s</output></label>
+        <div class="button-row"><button id="switch-cube" disabled>SPACE · ĐỔI KHỐI</button></div>
+      </section>
+    </aside>
+  </main>
+  <footer>Three.js GUI · Python API là nguồn sự thật cho trạng thái và luật di chuyển.</footer>
+</div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+  // ---------------- Thin Python API adapter ----------------
+  // Adapted from the project's docs/gui_api.md. All game rules and search
+  // stay in Python; the browser only sends actions and renders returned state.
+  let BOARD_WIDTH = 7;
+  let BOARD_HEIGHT = 7;
+  const START_STATE = { x: 3, z: 3, o: 'S' };
+  let GOAL = { x: 5, z: 5 };
+  let currentLevel = null;
+  let boardState = null;
+  let apiReady = false;
+  let solverAvailable = true;
+  let controllerMode = 'SEARCHING';
+  let busy = true;
+  let moveCount = 0;
+  let history = [];
+  let solutionPath = [];
+  let replaySnapshots = [];
+  let replayIndex = 0;
+  let replayHistoryBase = 0;
+  let replayTimer = null;
+  let replayWaitResolve = null;
+  let replayDelay = 400;
+  let blockMesh = null;
+  let splitMeshes = {};
+  const MOVE_LABEL = { U: 'lên', D: 'xuống', L: 'trái', R: 'phải', SWITCH: 'đổi khối điều khiển' };
+  const ORIENTATION_LABEL = { S: 'Đứng thẳng', X: 'Nằm ngang (trục X)', Z: 'Nằm dọc (trục Z)' };
+  const cloneState = s => structuredClone(s);
+  const API_BASE = (window.BLOXORZ_API_URL || '').replace(/\/+$/, '');
+  const TO_API_MOVE = { U: 'UP', D: 'DOWN', L: 'LEFT', R: 'RIGHT', SWITCH: 'SWITCH_CUBE' };
+  const FROM_API_MOVE = Object.fromEntries(Object.entries(TO_API_MOVE).map(([gui, api]) => [api, gui]));
+  const TILE_CHAR_TYPES = {
+    '#': 'FLOOR', S: 'FLOOR', '.': 'VOID', G: 'GOAL', F: 'FRAGILE', B: 'BRIDGE',
+    O: 'SOFT_SWITCH', X: 'HEAVY_SWITCH', P: 'SPLIT_SWITCH',
+  };
+  const API_ORIENTATIONS = { STANDING: 'S', HORIZONTAL: 'X', VERTICAL: 'Z' };
+
+  function cellFromApi(cell, name) {
+    if (Array.isArray(cell) && cell.length === 2
+      && Number.isInteger(cell[0]) && Number.isInteger(cell[1])) {
+      return { z: cell[0], x: cell[1] };
+    }
+    if (cell && Number.isInteger(cell.row) && Number.isInteger(cell.col)) {
+      return { z: cell.row, x: cell.col };
+    }
+    throw new Error(`${name} phải là [row, col].`);
+  }
+
+  function getBridgeConfigs(board) {
+    if (Array.isArray(board.bridges)) {
+      return board.bridges.map((bridge, index) => {
+        if (typeof bridge === 'string') return { id: bridge };
+        if (bridge && typeof bridge.id === 'string') return bridge;
+        throw new Error(`Thông tin bridge thứ ${index + 1} thiếu id.`);
+      });
+    }
+    if (board.bridges && typeof board.bridges === 'object') {
+      return Object.entries(board.bridges).map(([id, bridge]) => (
+        bridge && typeof bridge === 'object' ? { id, ...bridge } : { id }
+      ));
+    }
+    return [];
+  }
+
+  function metadataCells(metadata) {
+    const cells = [];
+    for (const key of ['cell', 'position', 'at', 'cells', 'positions', 'tiles']) {
+      const value = metadata?.[key];
+      if (Array.isArray(value) && value.length === 2 && value.every(Number.isInteger)) {
+        cells.push(cellFromApi(value, key));
+      } else if (Array.isArray(value)) {
+        for (const cell of value) cells.push(cellFromApi(cell, key));
+      } else if (value && typeof value === 'object') {
+        cells.push(cellFromApi(value, key));
+      }
+    }
+    if (Number.isInteger(metadata?.row) && Number.isInteger(metadata?.col)) {
+      cells.push({ z: metadata.row, x: metadata.col });
+    }
+    return cells;
+  }
+
+  function normalizeBoard(source) {
+    const board = source?.board || source;
+    const rawGrid = Array.isArray(board?.grid)
+      ? board.grid.map(row => typeof row === 'string' ? [...row] : row)
+      : null;
+    if (!Number.isInteger(board?.rows) || board.rows < 1
+      || !Number.isInteger(board?.cols) || board.cols < 1
+      || !Array.isArray(rawGrid) || rawGrid.length !== board.rows
+      || !Array.isArray(board.bridges) || !Array.isArray(board.switches)) {
+      throw new Error('Board API cần rows, cols và grid theo API contract.');
+    }
+    const goal = cellFromApi(board.goal, 'goal');
+    const start = cellFromApi(board.start, 'start');
+    const inBounds = cell => cell.x >= 0 && cell.x < board.cols && cell.z >= 0 && cell.z < board.rows;
+    if (!inBounds(goal) || !inBounds(start)) {
+      throw new Error('Tọa độ start và goal phải nằm trong board.');
+    }
+    if (rawGrid.some(row => !Array.isArray(row) || row.length !== board.cols
+      || row.some(tile => typeof tile !== 'string'
+        || !Object.hasOwn(TILE_CHAR_TYPES, tile.toUpperCase())))) {
+      throw new Error('Mọi hàng board.grid phải có cols ký tự tile hợp lệ.');
+    }
+    const startCells = [];
+    const goalCells = [];
+    for (let row = 0; row < board.rows; row++) {
+      for (let col = 0; col < board.cols; col++) {
+        if (rawGrid[row][col] === 'S') startCells.push({ x: col, z: row });
+        if (rawGrid[row][col] === 'G') goalCells.push({ x: col, z: row });
+      }
+    }
+    const sameCell = (a, b) => a.x === b.x && a.z === b.z;
+    if (startCells.length !== 1 || goalCells.length !== 1
+      || !sameCell(start, startCells[0]) || !sameCell(goal, goalCells[0])) {
+      throw new Error('board.start/goal phải khớp duy nhất với ô S/G trong grid.');
+    }
+    const bridgeConfigs = getBridgeConfigs(board);
+    const bridgeIdsFromMetadata = bridgeConfigs.map(bridge => bridge.id);
+    if (bridgeIdsFromMetadata.some(id => typeof id !== 'string' || !id)
+      || new Set(bridgeIdsFromMetadata).size !== bridgeIdsFromMetadata.length) {
+      throw new Error('Board bridges cần id chuỗi duy nhất.');
+    }
+    const bridgeByCell = new Map();
+    for (const bridge of bridgeConfigs) {
+      const cells = metadataCells(bridge);
+      if (cells.length !== 1 || !inBounds(cells[0])
+        || rawGrid[cells[0].z][cells[0].x] !== 'B'
+        || !['open', 'closed'].includes(bridge.initial)) {
+        throw new Error('Mỗi bridge cần cell B hợp lệ và initial open/closed.');
+      }
+      const key = `${cells[0].x},${cells[0].z}`;
+      if (bridgeByCell.has(key)) throw new Error('Không được khai báo nhiều bridge trên cùng ô B.');
+      bridgeByCell.set(key, bridge.id);
+    }
+    const bridgeTileKeys = [];
+    const switchByCell = new Map();
+    const switchGlyphs = { soft: 'o', heavy: 'x', split: 'P' };
+    for (let row = 0; row < board.rows; row++) {
+      for (let col = 0; col < board.cols; col++) {
+        const key = `${col},${row}`;
+        if (rawGrid[row][col] === 'B') bridgeTileKeys.push(key);
+      }
+    }
+    if (bridgeTileKeys.length !== bridgeByCell.size
+      || bridgeTileKeys.some(key => !bridgeByCell.has(key))) {
+      throw new Error('Mọi ô B phải có đúng một metadata bridge.');
+    }
+    for (const item of board.switches) {
+      const cells = metadataCells(item);
+      const targets = Object.hasOwn(item, 'targets') ? item.targets : [];
+      if (cells.length !== 1 || !inBounds(cells[0]) || !Object.hasOwn(switchGlyphs, item.type)
+        || rawGrid[cells[0].z][cells[0].x] !== switchGlyphs[item.type]
+        || !Array.isArray(targets)) {
+        throw new Error('Switch metadata cần cell/type hợp lệ và targets phải là mảng nếu được khai báo.');
+      }
+      const key = `${cells[0].x},${cells[0].z}`;
+      if (switchByCell.has(key)) throw new Error('Không được khai báo nhiều switch trên cùng ô.');
+      for (const target of targets) {
+        if (!bridgeIdsFromMetadata.includes(target.bridge)
+          || !['toggle', 'permanent_open', 'permanent_closed'].includes(target.mode)) {
+          throw new Error('Switch target tham chiếu bridge hoặc mode không hợp lệ.');
+        }
+      }
+      if (item.type === 'split') {
+        if (targets.length > 0) {
+          throw new Error('Split switch không được điều khiển bridge.');
+        }
+        if (!Array.isArray(item.split_cells) || item.split_cells.length !== 2) {
+          throw new Error('Split switch cần đúng hai split_cells.');
+        }
+        const splitCells = item.split_cells.map((cell, index) => (
+          cellFromApi(cell, `split_cells[${index}]`)
+        ));
+        if (splitCells.some(cell => !inBounds(cell))
+          || sameCell(splitCells[0], splitCells[1])) {
+          throw new Error('split_cells phải là hai ô khác nhau nằm trong board.');
+        }
+      } else if (Object.hasOwn(item, 'split_cells')) {
+        throw new Error('Chỉ split switch mới được khai báo split_cells.');
+      }
+      switchByCell.set(key, item);
+    }
+    const switchTileKeys = [];
+    for (let row = 0; row < board.rows; row++) {
+      for (let col = 0; col < board.cols; col++) {
+        if (['o', 'x', 'P'].includes(rawGrid[row][col])) {
+          switchTileKeys.push(`${col},${row}`);
+        }
+      }
+    }
+    if (switchTileKeys.length !== switchByCell.size
+      || switchTileKeys.some(key => !switchByCell.has(key))) {
+      throw new Error('Mọi ô switch phải có đúng một metadata switch.');
+    }
+    const tiles = [];
+    const bridgeIds = bridgeIdsFromMetadata;
+    for (let row = 0; row < board.rows; row++) {
+      for (let col = 0; col < board.cols; col++) {
+        const rawTile = rawGrid[row][col];
+        const tile = { type: TILE_CHAR_TYPES[rawTile.toUpperCase()] };
+        const type = tile.type;
+        const x = col;
+        const z = row;
+        const normalized = { ...tile, x, z, type };
+        const key = `${x},${z}`;
+        const switchMetadata = switchByCell.get(key);
+        if (switchMetadata) {
+          normalized.switch_type = switchMetadata.type;
+          normalized.targets = switchMetadata.targets ?? [];
+          normalized.split_cells = switchMetadata.split_cells || [];
+        }
+        if (type === 'BRIDGE') {
+          normalized.bridge_id = bridgeByCell.get(key);
+        }
+        tiles.push(normalized);
+      }
+    }
+    return {
+      name: board.name || '',
+      width: board.cols,
+      height: board.rows,
+      start,
+      goal,
+      bridges: bridgeConfigs,
+      tiles,
+      bridgeIds,
+    };
+  }
+
+  function fromApiState(state, board, allowOutOfBounds = false) {
+    if (!state || typeof state !== 'object') throw new Error('API không trả về state hợp lệ.');
+    if (typeof state.split_mode !== 'boolean') throw new Error('State.split_mode phải là boolean.');
+    const split = Boolean(state.split_mode);
+    const rawOrientation = String(state.orientation || '').toUpperCase();
+    const o = API_ORIENTATIONS[rawOrientation];
+    if (!o) throw new Error(`Hướng khối từ API không được hỗ trợ: ${state.orientation}`);
+    const anchor = state.block_position
+      ? cellFromApi(state.block_position, 'block_position')
+      : null;
+    const cubes = split ? {
+      A: cellFromApi(state.cube1_position, 'cube1_position'),
+      B: cellFromApi(state.cube2_position, 'cube2_position'),
+    } : undefined;
+    const inBounds = cell => cell.x >= 0 && cell.x < board.width && cell.z >= 0 && cell.z < board.height;
+    if (!anchor || (!allowOutOfBounds
+      && ((split && (!inBounds(cubes.A) || !inBounds(cubes.B)))
+        || (!split && !inBounds(anchor))))) {
+      throw new Error('Tọa độ khối trong state nằm ngoài board.');
+    }
+    if (split && !allowOutOfBounds && !inBounds(anchor)) {
+      throw new Error('State split cần block_position nằm trong board.');
+    }
+    if (split && cubes.A.x === cubes.B.x && cubes.A.z === cubes.B.z) {
+      throw new Error('Hai cube trong state split không được trùng ô.');
+    }
+    const activeCube = state.active_cube === 1
+      ? 'A'
+      : state.active_cube === 2
+        ? 'B'
+        : state.active_cube;
+    if (split && !['A', 'B'].includes(activeCube)) {
+      throw new Error('State split cần active_cube bằng 1/2 theo API contract.');
+    }
+    if (!split && (state.cube1_position !== null || state.cube2_position !== null
+      || state.active_cube !== null)) {
+      throw new Error('State không split phải có các trường cube và active_cube bằng null.');
+    }
+    if (split && rawOrientation !== 'STANDING') {
+      throw new Error('State split phải có orientation STANDING.');
+    }
+    const bridges = {};
+    if (Array.isArray(state.bridge_states)) {
+      if (state.bridge_states.length !== board.bridgeIds.length) {
+        throw new Error(`bridge_states có ${state.bridge_states.length} phần tử nhưng board khai báo ${board.bridgeIds.length} cầu.`);
+      }
+      if (state.bridge_states.some(value => typeof value !== 'boolean')) {
+        throw new Error('Mọi phần tử bridge_states phải là boolean.');
+      }
+      board.bridgeIds.forEach((id, index) => { bridges[id] = Boolean(state.bridge_states[index]); });
+    } else {
+      throw new Error('State.bridge_states phải là mảng boolean theo API contract.');
+    }
+    if (split && (anchor.x !== cubes[activeCube].x || anchor.z !== cubes[activeCube].z)) {
+      throw new Error('block_position trong state split phải trỏ tới cube đang hoạt động.');
+    }
+    const logicalAnchor = split ? cubes[activeCube] : anchor;
+    return {
+      mode: split ? 'SPLIT' : 'BLOCK',
+      x: logicalAnchor.x,
+      z: logicalAnchor.z,
+      o: split ? 'S' : o,
+      cubes,
+      active_cube: activeCube,
+      bridges,
+    };
+  }
+
+  function toApiState(state) {
+    const split = state.mode === 'SPLIT';
+    const blockPosition = split
+      ? state.cubes[state.active_cube]
+      : { x: state.x, z: state.z };
+    return {
+      block_position: [blockPosition.z, blockPosition.x],
+      orientation: split
+        ? 'STANDING'
+        : state.o === 'S' ? 'STANDING' : state.o === 'X' ? 'HORIZONTAL' : 'VERTICAL',
+      bridge_states: boardState.bridgeIds.map(id => Boolean(state.bridges[id])),
+      split_mode: split,
+      cube1_position: split ? [state.cubes.A.z, state.cubes.A.x] : null,
+      cube2_position: split ? [state.cubes.B.z, state.cubes.B.x] : null,
+      active_cube: split ? state.active_cube === 'A' ? 1 : 2 : null,
+    };
+  }
+
+  async function apiRequest(path, options = {}) {
+    const response = await fetch(`${API_BASE}/${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error(`API ${path} không trả về JSON hợp lệ (HTTP ${response.status}).`);
+    }
+    if (!response.ok) {
+      const errorBody = body && typeof body.error === 'object' ? body.error : null;
+      const message = errorBody?.message
+        || (body && typeof body.error === 'string' ? body.error : null)
+        || `API trả về HTTP ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      error.code = errorBody?.code || body?.code || null;
+      throw error;
+    }
+    return body;
+  }
+  class PythonEngineAPI {
+    async getLevels() {
+      const result = await apiRequest('levels');
+      const levels = Array.isArray(result) ? result : result.levels;
+      if (!Array.isArray(levels) || levels.some(level => typeof level !== 'string')) {
+        throw new Error('GET /levels phải trả về danh sách tên level dạng chuỗi.');
+      }
+      return levels;
+    }
+    async getLevel(level) {
+      const result = await apiRequest(`levels/${encodeURIComponent(level)}`);
+      const board = normalizeBoard(result.board || result);
+      const initialState = result.initial_state || result.board?.initial_state;
+      if (!initialState) throw new Error(`GET /levels/${level} thiếu initial_state.`);
+      boardState = board;
+      return { board, state: fromApiState(initialState, board) };
+    }
+    async applyAction(action, state) {
+      const apiAction = TO_API_MOVE[action];
+      if (!apiAction) throw new Error(`Action GUI không được hỗ trợ: ${action}`);
+      const result = await apiRequest('transition', {
+        method: 'POST',
+        body: JSON.stringify({ level: currentLevel, state: toApiState(state), action: apiAction }),
+      });
+      const status = String(result.status || '').toLowerCase();
+      if (!['ok', 'fall', 'illegal'].includes(status)) {
+        throw new Error(`Transition trả về status không hợp lệ: ${result.status}`);
+      }
+      if (typeof result.isGoal !== 'boolean') {
+        throw new Error('TransitionResult.isGoal phải là boolean.');
+      }
+      if (status === 'ok' && (!result.state || typeof result.state !== 'object')) {
+        throw new Error('TransitionResult.status=ok cần state hợp lệ.');
+      }
+      if (status !== 'ok' && (result.state !== null || result.isGoal)) {
+        throw new Error(`TransitionResult.status=${status} phải có state=null và isGoal=false.`);
+      }
+      if (status === 'fall' && (!result.fall_state || typeof result.fall_state !== 'object')) {
+        throw new Error('TransitionResult.status=fall cần fall_state để dựng animation vào ô bẫy.');
+      }
+      if (status !== 'fall' && result.fall_state !== null) {
+        throw new Error(`TransitionResult.status=${status} phải có fall_state=null.`);
+      }
+      return {
+        status,
+        state: status === 'ok' ? fromApiState(result.state, boardState) : null,
+        fallState: status === 'fall' ? fromApiState(result.fall_state, boardState, true) : null,
+        isGoal: result.isGoal,
+        reason: result.reason || null,
+      };
+    }
+    async solve(algorithm, state) {
+      const result = await apiRequest('solve', {
+        method: 'POST',
+        body: JSON.stringify({ level: currentLevel, algorithm, state: toApiState(state) }),
+      });
+      if (typeof result.solved !== 'boolean' || !Array.isArray(result.path)) {
+        throw new Error('POST /solve phải trả về solved và path theo SearchResult.');
+      }
+      const numericFields = ['total_cost', 'search_time', 'memory_usage', 'expanded_nodes', 'solution_length'];
+      if (numericFields.some(field => !Number.isFinite(result[field]))) {
+        throw new Error('SearchResult thiếu một hoặc nhiều trường metrics dạng số.');
+      }
+      const preprocessingTime = result.preprocessing_time ?? 0;
+      if (!Number.isFinite(preprocessingTime) || preprocessingTime < 0) {
+        throw new Error('SearchResult.preprocessing_time phải là số không âm.');
+      }
+      if (result.solution_length !== result.path.length) {
+        throw new Error('SearchResult.solution_length phải bằng độ dài path.');
+      }
+      const path = result.path.map(move => {
+        const mapped = FROM_API_MOVE[move];
+        if (!mapped) throw new Error(`Action trong solver path không được hỗ trợ: ${move}`);
+        return mapped;
+      });
+      return {
+        solved: result.solved,
+        path,
+        totalCost: result.total_cost,
+        searchTime: result.search_time,
+        preprocessingTime,
+        memoryUsage: result.memory_usage,
+        expandedNodes: result.expanded_nodes,
+        solutionLength: result.solution_length,
+      };
+    }
+  }
+  const engineAPI = new PythonEngineAPI();
+
+  // ---------------- Three.js scene and tile board ----------------
+  const stage = document.getElementById('stage');
+  const BOARD_LIFT = 5;
+  const WATER_LEVEL = -0.82;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#64ddf5');
+  // Keep the turquoise ocean texture visible farther into the distance.
+  scene.fog = new THREE.Fog('#64ddf5', 150, 360);
+  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+  // A steeper starting angle keeps the ocean visible across almost the whole viewport.
+  // The camera distance remains close to the original value.
+  camera.position.set(4.7, BOARD_LIFT + 15.4, 7.4);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.22;
+  stage.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, BOARD_LIFT + 0.25, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.12;
+  controls.rotateSpeed = 1.5;
+  controls.maxPolarAngle = Math.PI * 0.44;
+  controls.minDistance = 7;
+  controls.maxDistance = 24;
+
+  scene.add(new THREE.HemisphereLight('#e9ffff', '#b08b49', 2.1));
+  const keyLight = new THREE.DirectionalLight('#fff2c4', 3.2);
+  keyLight.position.set(-5, BOARD_LIFT + 11.45, 7);
+  keyLight.target.position.set(0, BOARD_LIFT, 0);
+  scene.add(keyLight.target);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.left = -11;
+  keyLight.shadow.camera.right = 11;
+  keyLight.shadow.camera.top = 11;
+  keyLight.shadow.camera.bottom = -11;
+  scene.add(keyLight);
+
+  function makeCanvasTexture(draw) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    draw(canvas.getContext('2d'), canvas.width, canvas.height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  }
+  // Bright tropical water with layered foam/caustic marks.
+  const waterTexture = makeCanvasTexture((ctx, width, height) => {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#50cfea');
+    gradient.addColorStop(0.48, '#74e2f7');
+    gradient.addColorStop(1, '#48c9e8');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    let seed = 240719;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Broken, irregular rings create broad patches of sea foam.
+    for (let patch = 0; patch < 112; patch++) {
+      const cx = random() * width;
+      const cy = random() * height;
+      const rx = 12 + random() * 35;
+      const ry = 6 + random() * 21;
+      const rotation = random() * Math.PI;
+      for (let ring = 0; ring < 2; ring++) {
+        const scale = 1 - ring * 0.34;
+        const phase = random() * Math.PI * 2;
+        ctx.beginPath();
+        for (let step = 0; step <= 64; step++) {
+          const angle = step / 64 * Math.PI * 2;
+          const ripple = 1
+            + Math.sin(angle * 4 + phase) * 0.19
+            + Math.sin(angle * 7 - phase) * 0.10;
+          const px = Math.cos(angle) * rx * scale * ripple;
+          const py = Math.sin(angle) * ry * scale * ripple;
+          const x = cx + px * Math.cos(rotation) - py * Math.sin(rotation);
+          const y = cy + px * Math.sin(rotation) + py * Math.cos(rotation);
+          if (step === 0 || random() > 0.16) {
+            if (step === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          } else {
+            ctx.moveTo(x, y);
+          }
+        }
+        // A faint aqua edge makes the white foam easier to read.
+        ctx.strokeStyle = 'rgba(24, 151, 195, 0.25)';
+        ctx.lineWidth = ring === 0 ? 3.4 : 2.3;
+        ctx.stroke();
+        ctx.strokeStyle = ring === 0
+          ? 'rgba(250, 255, 255, 0.96)'
+          : 'rgba(218, 251, 255, 0.82)';
+        ctx.lineWidth = ring === 0 ? 1.65 : 1.15;
+        ctx.stroke();
+      }
+    }
+
+    // Fine foam strokes add smaller, high-contrast ripples between the rings.
+    for (let fleck = 0; fleck < 390; fleck++) {
+      const x = random() * width;
+      const y = random() * height;
+      const length = 2.5 + random() * 13;
+      const bend = 1 + random() * 4;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(
+        x + length * 0.4,
+        y - bend,
+        x + length,
+        y + (random() - 0.5) * 3
+      );
+      ctx.strokeStyle = 'rgba(31, 158, 199, 0.22)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.strokeStyle = random() > 0.22
+        ? 'rgba(245, 255, 255, 0.88)'
+        : 'rgba(207, 249, 255, 0.78)';
+      ctx.lineWidth = 0.8 + random() * 1.2;
+      ctx.stroke();
+    }
+  });
+  waterTexture.repeat.set(10, 10);
+
+  // A second, transparent ripple layer scrolls at a different speed.
+  const waterDetailTexture = makeCanvasTexture((ctx, width, height) => {
+    let seed = 92841;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let patch = 0; patch < 72; patch++) {
+      const cx = random() * width;
+      const cy = random() * height;
+      const rx = 10 + random() * 28;
+      const ry = 5 + random() * 15;
+      const rotation = random() * Math.PI;
+      ctx.beginPath();
+      for (let step = 0; step <= 44; step++) {
+        const a = step / 44 * Math.PI * 2;
+        const r = 1 + 0.18 * Math.sin(a * 5 + cx * 0.05)
+                    + 0.08 * Math.sin(a * 8 + cy * 0.04);
+        const px = Math.cos(a) * rx * r;
+        const py = Math.sin(a) * ry * r;
+        const x = cx + px * Math.cos(rotation) - py * Math.sin(rotation);
+        const y = cy + px * Math.sin(rotation) + py * Math.cos(rotation);
+        if (step === 0 || random() > 0.25) {
+          if (step === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        } else {
+          ctx.moveTo(x, y);
+        }
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+  });
+  waterDetailTexture.repeat.set(6, 6);
+  const oceanGeometry = new THREE.PlaneGeometry(220, 220, 96, 96);
+  const oceanBasePositions = oceanGeometry.attributes.position.array.slice();
+  oceanGeometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
+  const oceanMaterial = new THREE.MeshPhysicalMaterial({
+    map: waterTexture,
+    color: '#f5ffff',
+    roughness: 0.38,
+    metalness: 0.01,
+    clearcoat: 0.28,
+    clearcoatRoughness: 0.32,
+  });
+  const ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+  ocean.rotation.x = -Math.PI / 2;
+  ocean.position.y = WATER_LEVEL;
+  ocean.receiveShadow = true;
+  scene.add(ocean);
+
+  const waterDetailMaterial = new THREE.MeshBasicMaterial({
+    map: waterDetailTexture,
+    color: '#f4ffff',
+    transparent: true,
+    opacity: 0.23,
+    depthWrite: false,
+  });
+  const oceanDetail = new THREE.Mesh(oceanGeometry, waterDetailMaterial);
+  oceanDetail.rotation.x = -Math.PI / 2;
+  oceanDetail.position.y = WATER_LEVEL + 0.006;
+  oceanDetail.renderOrder = 1;
+  scene.add(oceanDetail);
+
+  const grassMaterial = new THREE.MeshStandardMaterial({ color: '#72d82b', roughness: 0.92, flatShading: true });
+  const islandSideMaterial = new THREE.MeshStandardMaterial({ color: '#d99748', roughness: 1, flatShading: true });
+  const trunkMaterial = new THREE.MeshStandardMaterial({ color: '#865321', roughness: 1, flatShading: true });
+  const leafMaterials = ['#53c51f', '#8ddc26', '#37a928'].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true }));
+  function addIsland(x, z, radius = 1) {
+    const island = new THREE.Group();
+    island.position.set(x, 0, z);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.78, radius, 0.38, 8), islandSideMaterial);
+    base.position.y = -0.36;
+    base.castShadow = true;
+    island.add(base);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.8, radius * 0.78, 0.12, 8), grassMaterial);
+    top.position.y = -0.11;
+    top.receiveShadow = true;
+    island.add(top);
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI * 2 / 3 + 0.25;
+      const tree = new THREE.Group();
+      tree.position.set(Math.cos(a) * radius * 0.27, -0.04, Math.sin(a) * radius * 0.24);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.07, radius * 0.7, 5), trunkMaterial);
+      trunk.position.y = radius * 0.34;
+      tree.add(trunk);
+      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(radius * 0.26, 0), leafMaterials[i]);
+      crown.scale.set(1, 0.9, 0.88);
+      crown.position.y = radius * 0.72;
+      tree.add(crown);
+      const sideLeaf = new THREE.Mesh(new THREE.IcosahedronGeometry(radius * 0.19, 0), leafMaterials[(i + 1) % leafMaterials.length]);
+      sideLeaf.position.set(Math.cos(a + 1.8) * radius * 0.16, radius * 0.62, Math.sin(a + 1.8) * radius * 0.16);
+      tree.add(sideLeaf);
+      island.add(tree);
+    }
+    scene.add(island);
+  }
+  addIsland(-3.2, -5.7, 1.18);
+  addIsland(-5.2, 4.8, 1.1);
+
+  const cellToWorldX = n => n - (BOARD_WIDTH - 1) / 2;
+  const cellToWorldZ = n => n - (BOARD_HEIGHT - 1) / 2;
+  const cellCenter = (x, z) => new THREE.Vector3(cellToWorldX(x), BOARD_LIFT, cellToWorldZ(z));
+  const assetTextureLoader = new THREE.TextureLoader();
+  const dirtTopTexture = assetTextureLoader.load('assets/rollingcat/DirtTop.png');
+  const dirtSideTexture = assetTextureLoader.load('assets/rollingcat/DirtSides.png');
+  for (const texture of [dirtTopTexture, dirtSideTexture]) {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  }
+  const tileTopMaterial = new THREE.MeshStandardMaterial({ map: dirtTopTexture, roughness: 0.95 });
+  const tileSideMaterial = new THREE.MeshStandardMaterial({ map: dirtSideTexture, roughness: 0.98 });
+  const goalTopMaterial = new THREE.MeshStandardMaterial({ map: dirtTopTexture, color: '#e7ad50', roughness: 0.9 });
+  const fragileTopMaterial = new THREE.MeshStandardMaterial({ color: '#f09a35', roughness: 0.9 });
+  const softSwitchMaterial = new THREE.MeshStandardMaterial({ color: '#29c7cb', roughness: 0.48, metalness: 0.08 });
+  const heavySwitchMaterial = new THREE.MeshStandardMaterial({ color: '#e75d34', roughness: 0.55 });
+  const splitSwitchMaterial = new THREE.MeshStandardMaterial({ color: '#9160d9', roughness: 0.5 });
+  const bridgeClosedMaterial = new THREE.MeshStandardMaterial({ color: '#a94d42', roughness: 0.72 });
+  const bridgeOpenMaterial = new THREE.MeshStandardMaterial({ color: '#74d77a', roughness: 0.78 });
+  const brokenTileMaterial = new THREE.MeshStandardMaterial({ color: '#754837', roughness: 1 });
+  const tileGeometry = new THREE.BoxGeometry(0.97, 0.18, 0.97);
+  const tileMeshes = new Map();
+  let boardTiles = [];
+  const switchDiskGeometry = new THREE.CylinderGeometry(0.23, 0.27, 0.08, 8);
+  const switchMarkGeometry = new THREE.OctahedronGeometry(0.21, 0);
+  const heavyMarkGeometry = new THREE.BoxGeometry(0.5, 0.065, 0.12);
+  const splitMarkGeometry = new THREE.TorusGeometry(0.15, 0.027, 6, 12, Math.PI);
+  const bridgeRailGeometry = new THREE.BoxGeometry(0.12, 0.14, 0.94);
+  const bridgeCrossGeometry = new THREE.BoxGeometry(0.58, 0.07, 0.1);
+  const goalMarkGeometry = new THREE.CircleGeometry(0.25, 12);
+  const goalMarkMaterial = new THREE.MeshStandardMaterial({ color: '#f06b25', roughness: 0.68, side: THREE.DoubleSide });
+  const goalRingGeometry = new THREE.RingGeometry(0.29, 0.42, 16);
+  const goalRingMaterial = new THREE.MeshStandardMaterial({ color: '#fff1a8', roughness: 0.62, side: THREE.DoubleSide });
+
+  function buildBoard(board) {
+    BOARD_WIDTH = board.width;
+    BOARD_HEIGHT = board.height;
+    GOAL = board.goal;
+    boardTiles = board.tiles;
+    const cameraTarget = new THREE.Vector3(0, BOARD_LIFT + 0.25, 0);
+    const defaultCameraOffset = new THREE.Vector3(4.7, 15.15, 7.4);
+    const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
+    const limitingFov = Math.min(verticalFov, horizontalFov);
+    const boardRadius = Math.hypot(BOARD_WIDTH, BOARD_HEIGHT) / 2 + 0.9;
+    const cameraDistance = Math.max(
+      defaultCameraOffset.length(),
+      boardRadius / Math.sin(limitingFov / 2) * 1.08,
+    );
+    controls.target.copy(cameraTarget);
+    camera.position.copy(cameraTarget).addScaledVector(
+      defaultCameraOffset.normalize(),
+      cameraDistance,
+    );
+    controls.maxDistance = Math.max(24, cameraDistance * 1.5);
+    controls.update();
+    document.querySelector('.board-hud').textContent = `${BOARD_WIDTH} × ${BOARD_HEIGHT}`;
+    for (const record of tileMeshes.values()) scene.remove(record.group);
+    tileMeshes.clear();
+    for (const tile of boardTiles) {
+      if (tile.type === 'VOID') continue;
+      const group = new THREE.Group();
+      group.position.set(cellToWorldX(tile.x), BOARD_LIFT, cellToWorldZ(tile.z));
+      const top = tile.type === 'GOAL' ? goalTopMaterial : tile.type === 'FRAGILE' ? fragileTopMaterial : tileTopMaterial;
+      const materials = [tileSideMaterial, tileSideMaterial, top, tileSideMaterial, tileSideMaterial, tileSideMaterial];
+      const base = new THREE.Mesh(tileGeometry, materials);
+      base.position.y = -0.09;
+      base.receiveShadow = true;
+      group.add(base);
+      const record = { group, tile, base };
+
+      if (tile.type === 'GOAL') {
+        const ring = new THREE.Mesh(goalRingGeometry, goalRingMaterial);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.008;
+        const mark = new THREE.Mesh(goalMarkGeometry, goalMarkMaterial);
+        mark.rotation.x = -Math.PI / 2;
+        mark.position.y = 0.006;
+        group.add(ring, mark);
+      } else if (tile.type === 'FRAGILE') {
+        const points = new Float32Array([
+          -0.27, 0.008, -0.19, -0.04, 0.008, 0.02,
+          -0.04, 0.008, 0.02, 0.12, 0.008, -0.06,
+          -0.04, 0.008, 0.02, 0.18, 0.008, 0.23,
+        ]);
+        const cracksGeometry = new THREE.BufferGeometry();
+        cracksGeometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+        record.cracks = new THREE.LineSegments(cracksGeometry, brokenTileMaterial);
+        record.cracks.visible = true;
+        record.intactTop = fragileTopMaterial;
+        group.add(record.cracks);
+      } else if (tile.type === 'SOFT_SWITCH') {
+        const plate = new THREE.Mesh(switchDiskGeometry, tileSideMaterial);
+        plate.position.y = 0.035;
+        const mark = new THREE.Mesh(switchMarkGeometry, softSwitchMaterial);
+        mark.scale.y = 0.42;
+        mark.position.y = 0.15;
+        group.add(plate, mark);
+      } else if (tile.type === 'HEAVY_SWITCH') {
+        const plate = new THREE.Mesh(switchDiskGeometry, tileSideMaterial);
+        plate.position.y = 0.035;
+        const markA = new THREE.Mesh(heavyMarkGeometry, heavySwitchMaterial);
+        const markB = new THREE.Mesh(heavyMarkGeometry, heavySwitchMaterial);
+        markA.position.y = markB.position.y = 0.13;
+        markA.rotation.y = Math.PI / 4;
+        markB.rotation.y = -Math.PI / 4;
+        group.add(plate, markA, markB);
+      } else if (tile.type === 'SPLIT_SWITCH') {
+        const plate = new THREE.Mesh(switchDiskGeometry, tileSideMaterial);
+        plate.position.y = 0.035;
+        for (const side of [-1, 1]) {
+          const bracket = new THREE.Mesh(splitMarkGeometry, splitSwitchMaterial);
+          bracket.rotation.set(Math.PI / 2, side < 0 ? Math.PI : 0, 0);
+          bracket.position.set(side * 0.09, 0.15, 0);
+          group.add(bracket);
+        }
+        group.add(plate);
+      } else if (tile.type === 'BRIDGE') {
+        const deck = new THREE.Mesh(tileGeometry, [tileSideMaterial, tileSideMaterial, bridgeOpenMaterial, tileSideMaterial, tileSideMaterial, tileSideMaterial]);
+        deck.position.y = -0.09;
+        deck.receiveShadow = true;
+        group.add(deck);
+        const railA = new THREE.Mesh(bridgeRailGeometry, bridgeClosedMaterial);
+        const railB = new THREE.Mesh(bridgeRailGeometry, bridgeClosedMaterial);
+        railA.position.set(-0.37, -0.01, 0);
+        railB.position.set(0.37, -0.01, 0);
+        const crossA = new THREE.Mesh(bridgeCrossGeometry, bridgeClosedMaterial);
+        const crossB = new THREE.Mesh(bridgeCrossGeometry, bridgeClosedMaterial);
+        crossA.position.set(0, 0.02, 0);
+        crossB.position.set(0, 0.02, 0);
+        crossA.rotation.y = Math.PI / 4;
+        crossB.rotation.y = -Math.PI / 4;
+        group.add(railA, railB, crossA, crossB);
+        record.bridgeDeck = deck;
+        record.closedParts = [railA, railB, crossA, crossB];
+      }
+      scene.add(group);
+      tileMeshes.set(`${tile.x},${tile.z}`, record);
+    }
+  }
+
+  function updateBoardVisuals(state) {
+    for (const record of tileMeshes.values()) {
+      const { tile } = record;
+      if (tile.type === 'BRIDGE') {
+        const open = Boolean(state.bridges?.[tile.bridge_id]);
+        record.base.visible = false;
+        record.bridgeDeck.visible = open;
+        record.closedParts.forEach(part => { part.visible = !open; });
+      } else if (tile.type === 'FRAGILE') {
+        record.base.material[2] = record.intactTop;
+        record.base.scale.y = 1;
+        record.base.position.y = -0.09;
+        record.cracks.visible = true;
+        record.cracks.position.y = 0;
+      }
+    }
+  }
+  const beachBallMeshes = [];
+  function makeBeachBallTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    const colors = ['#f4d83f', '#ef347c', '#4ccce5', '#69d53a', '#ff7434', '#f7f4df', '#7f48ce', '#f4d83f'];
+    const stripeWidth = canvas.width / colors.length;
+    colors.forEach((color, index) => {
+      context.fillStyle = color;
+      context.fillRect(index * stripeWidth, 0, stripeWidth, canvas.height);
+      context.fillStyle = 'rgba(255,255,255,.48)';
+      context.fillRect(index * stripeWidth, 0, 3, canvas.height);
+    });
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    return texture;
+  }
+  function loadBeachBallProps() {
+    new FBXLoader().load('assets/rollingcat/models/Models/BeachBall.fbx', model => {
+      model.updateMatrixWorld(true);
+      let sourceMesh = null;
+      model.traverse(object => {
+        if (!sourceMesh && object.isMesh) sourceMesh = object;
+      });
+      if (!sourceMesh) return;
+      const geometry = sourceMesh.geometry.clone();
+      geometry.applyMatrix4(sourceMesh.matrixWorld);
+      geometry.computeBoundingBox();
+      const bounds = geometry.boundingBox;
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const maxDimension = Math.max(size.x, size.y, size.z);
+      if (!maxDimension) {
+        geometry.dispose();
+        return;
+      }
+      geometry.translate(-center.x, -center.y, -center.z);
+      geometry.scale(1 / maxDimension, 1 / maxDimension, 1 / maxDimension);
+      geometry.computeVertexNormals();
+      const material = new THREE.MeshStandardMaterial({ map: makeBeachBallTexture(), roughness: 0.42 });
+      for (const x of [-4.05, 4.05]) {
+        const ball = new THREE.Mesh(geometry, material);
+        ball.name = 'Decorative RollingCat beach ball';
+        ball.scale.setScalar(0.72);
+        ball.position.set(x, WATER_LEVEL + 0.36, x < 0 ? 0.25 : -0.25);
+        ball.castShadow = true;
+        ball.receiveShadow = true;
+        scene.add(ball);
+        beachBallMeshes.push(ball);
+      }
+    }, undefined, error => {
+      console.warn('Không tải được assets/rollingcat/models/Models/BeachBall.fbx; bỏ qua bóng trang trí.', error);
+    });
+  }
+  loadBeachBallProps();
+  const blockMaterial = new THREE.MeshStandardMaterial({
+    color: '#ffd52a', roughness: 0.62, metalness: 0, flatShading: true,
+    emissive: '#382400', emissiveIntensity: 0.1,
+  });
+  const fallbackBlockGeometry = new THREE.BoxGeometry(1, 2, 1);
+  let blockAssetModel = null;
+  let visualState = {
+    ...START_STATE,
+    mode: 'BLOCK',
+    orientation: 'STANDING',
+    bridges: {},
+  };
+
+  function loadBlockAsset() {
+    return new Promise(resolve => {
+      new FBXLoader().load('assets/rollingcat/models/Models/Cube.fbx', model => {
+        model.updateMatrixWorld(true);
+        const sourceMeshes = [];
+        model.traverse(object => {
+          if (object.isMesh) sourceMeshes.push(object);
+        });
+        if (!sourceMeshes.length) {
+          resolve(null);
+          return;
+        }
+        const meshEntries = sourceMeshes.map(sourceMesh => {
+          const geometry = sourceMesh.geometry.clone();
+          geometry.applyMatrix4(sourceMesh.matrixWorld);
+          geometry.computeBoundingBox();
+          return {
+            geometry,
+            material: Array.isArray(sourceMesh.material)
+              ? sourceMesh.material.map(material => material.clone())
+              : sourceMesh.material.clone(),
+            name: sourceMesh.name,
+          };
+        });
+        const bounds = new THREE.Box3();
+        for (const { geometry } of meshEntries) bounds.union(geometry.boundingBox);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (size.x === 0 || size.y === 0 || size.z === 0) {
+          meshEntries.forEach(({ geometry }) => geometry.dispose());
+          resolve(null);
+          return;
+        }
+        // Keep the FBX proportions intact: normalize every axis with one scale factor.
+        // Cube.fbx is authored as the standing 1x2x1 block, so lying poses rotate it.
+        const unitScale = 1 / Math.max(size.x, size.z);
+        const normalizedModel = new THREE.Group();
+        normalizedModel.name = 'RollingCat Cube original model';
+        for (const { geometry, material, name } of meshEntries) {
+          geometry.translate(-center.x, -center.y, -center.z);
+          geometry.scale(unitScale, unitScale, unitScale);
+          if (!geometry.attributes.normal) geometry.computeVertexNormals();
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.name = name;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          normalizedModel.add(mesh);
+        }
+        resolve(normalizedModel);
+      }, undefined, error => {
+        console.warn('Không tải được assets/rollingcat/models/Models/Cube.fbx; dùng khối Three.js dự phòng.', error);
+        resolve(null);
+      });
+    });
+  }
+
+  function setBlockVisualActive(visual) {
+    visual.traverse(object => {
+      if (!object.isMesh) return;
+      const highlight = material => {
+        const copy = material.clone();
+        if (copy.emissive) {
+          copy.emissive.set('#594000');
+          copy.emissiveIntensity = Math.max(copy.emissiveIntensity || 0, 0.1);
+        }
+        return copy;
+      };
+      object.material = Array.isArray(object.material)
+        ? object.material.map(highlight)
+        : highlight(object.material);
+      object.userData.ownsMaterial = true;
+    });
+  }
+
+  function createBlockVisual(active = false) {
+    if (blockAssetModel) {
+      const model = blockAssetModel.clone(true);
+      if (active) setBlockVisualActive(model);
+      return model;
+    }
+    const fallback = new THREE.Mesh(fallbackBlockGeometry, active ? blockMaterial.clone() : blockMaterial);
+    if (active) {
+      fallback.material.emissive.set('#594000');
+      fallback.userData.ownsMaterial = true;
+    }
+    return fallback;
+  }
+
+  function disposeBlockVisual(visual) {
+    visual.traverse(object => {
+      if (!object.isMesh || !object.userData.ownsMaterial) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach(material => material.dispose());
+    });
+  }
+
+  function dimensionsFor(o) {
+    if (o === 'S') return [1, 2, 1];
+    if (o === 'X') return [2, 1, 1];
+    return [1, 1, 2];
+  }
+  function setBlockPose(mesh, o) {
+    mesh.scale.setScalar(1);
+    mesh.rotation.set(0, 0, 0);
+    if (o === 'X') mesh.rotation.z = -Math.PI / 2;
+    if (o === 'Z') mesh.rotation.x = -Math.PI / 2;
+  }
+  function worldCenter(s) {
+    const xOffset = s.o === 'X' ? 0.5 : 0;
+    const zOffset = s.o === 'Z' ? 0.5 : 0;
+    const p = cellCenter(s.x + xOffset, s.z + zOffset);
+    if (s.o === 'S') p.y = BOARD_LIFT + 1;
+    if (s.o !== 'S') p.y = BOARD_LIFT + 0.5;
+    return p;
+  }
+  function makeBlock(s) {
+    if (blockMesh) {
+      scene.remove(blockMesh);
+      disposeBlockVisual(blockMesh);
+      blockMesh = null;
+    }
+    for (const cube of Object.values(splitMeshes)) {
+      scene.remove(cube);
+      disposeBlockVisual(cube);
+    }
+    splitMeshes = {};
+    if (s.mode === 'SPLIT') {
+      for (const id of ['A', 'B']) {
+        const cubeState = s.cubes[id];
+        const cube = createBlockVisual(id === s.active_cube);
+        cube.scale.set(1, 0.5, 1);
+        cube.position.set(cellToWorldX(cubeState.x), BOARD_LIFT + 0.5, cellToWorldZ(cubeState.z));
+        scene.add(cube);
+        splitMeshes[id] = cube;
+      }
+      visualState = cloneState(s);
+      updateBoardVisuals(visualState);
+      return;
+    }
+    blockMesh = createBlockVisual();
+    setBlockPose(blockMesh, s.o);
+    blockMesh.position.copy(worldCenter(s));
+    scene.add(blockMesh);
+    visualState = cloneState(s);
+    updateBoardVisuals(visualState);
+  }
+  function renderStatus(message) {
+    if (visualState.mode === 'SPLIT') {
+      const a = visualState.cubes.A;
+      const b = visualState.cubes.B;
+      document.getElementById('position').textContent = `A(${a.x},${a.z}) B(${b.x},${b.z})`;
+      document.getElementById('orientation').textContent = `Tách · chọn ${visualState.active_cube}`;
+    } else {
+      document.getElementById('position').textContent = `(${visualState.x}, ${visualState.z})`;
+      document.getElementById('orientation').textContent = ORIENTATION_LABEL[visualState.o];
+    }
+    document.getElementById('move-count').textContent = String(moveCount);
+    const statusMessage = visualState.mode === 'SPLIT'
+      ? `${message || 'Khối đã tách.'} · A(${visualState.cubes.A.x},${visualState.cubes.A.z}) B(${visualState.cubes.B.x},${visualState.cubes.B.z}) · Space đổi khối.`
+      : message;
+    if (statusMessage) document.getElementById('status-message').textContent = statusMessage;
+    const prompt = {
+      SEARCHING: 'SEARCHING…',
+      REPLAYING: 'SOLUTION PLAYBACK',
+      REPLAY_PAUSED: 'PLAYBACK PAUSED',
+      WON: 'LEVEL COMPLETE!',
+      LOST: 'BLOCK FELL!',
+      ERROR: 'PLAYBACK ERROR',
+    }[controllerMode] || (moveCount === 0 ? 'SWIPE TO START' : 'KEEP ROLLING!');
+    document.getElementById('stage-prompt').textContent = prompt;
+    updateControls();
+  }
+
+  function updateControls() {
+    const locked = busy || !apiReady;
+    const manual = controllerMode === 'MANUAL_PLAY';
+    document.getElementById('switch-cube').disabled = locked || !manual || visualState.mode !== 'SPLIT';
+    document.getElementById('reset').disabled = locked;
+    document.getElementById('new-game').disabled = locked;
+    document.getElementById('undo').disabled = locked || history.length === 0
+      || controllerMode === 'REPLAYING' || controllerMode === 'SEARCHING';
+    document.getElementById('solve').disabled = locked || !solverAvailable
+      || controllerMode === 'WON' || controllerMode === 'LOST' || controllerMode === 'ERROR'
+      || controllerMode === 'REPLAYING' || controllerMode === 'SEARCHING';
+    document.getElementById('level-select').disabled = locked;
+    document.getElementById('algorithm-select').disabled = locked || !solverAvailable
+      || controllerMode === 'REPLAYING' || controllerMode === 'SEARCHING';
+    const hasSolution = solutionPath.length > 0;
+    const replayBusy = busy || !apiReady || !hasSolution || controllerMode === 'SEARCHING';
+    const replayErrored = controllerMode === 'ERROR';
+    document.getElementById('replay-first').disabled = replayBusy || replayIndex === 0;
+    document.getElementById('replay-back').disabled = replayBusy || replayIndex === 0;
+    document.getElementById('replay-forward').disabled = replayBusy || replayErrored
+      || replayIndex >= solutionPath.length
+      || controllerMode === 'REPLAYING';
+    document.getElementById('replay-last').disabled = replayBusy || replayErrored
+      || replayIndex >= solutionPath.length
+      || controllerMode === 'REPLAYING';
+    document.getElementById('replay-toggle').disabled = replayBusy
+      || replayErrored
+      || (controllerMode !== 'REPLAYING' && replayIndex >= solutionPath.length);
+    document.getElementById('replay-toggle').textContent = controllerMode === 'REPLAYING' ? '⏸' : '▶';
+    document.getElementById('replay-toggle').setAttribute(
+      'aria-label',
+      controllerMode === 'REPLAYING' ? 'Tạm dừng phát lại' : 'Tiếp tục phát lại',
+    );
+    document.getElementById('replay-speed').disabled = locked || !solverAvailable;
+    document.getElementById('replay-speed-value').textContent = `${(replayDelay / 1000).toFixed(1)}s`;
+    document.getElementById('move-count').textContent = String(moveCount);
+  }
+
+  function playBlockedFeedback() {
+    stage.classList.remove('blocked-feedback');
+    void stage.offsetWidth;
+    stage.classList.add('blocked-feedback');
+    window.setTimeout(() => stage.classList.remove('blocked-feedback'), 220);
+  }
+
+  function animateVictory() {
+    const winners = blockMesh ? [blockMesh] : Object.values(splitMeshes);
+    if (winners.length === 0) return Promise.resolve();
+    const initialPoses = winners.map(winner => ({
+      y: winner.position.y,
+      rotation: winner.rotation.y,
+    }));
+    const start = performance.now();
+    const duration = 520;
+    return new Promise(resolve => {
+      function frame(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const bounce = Math.sin(t * Math.PI) * 0.32;
+        winners.forEach((winner, index) => {
+          winner.position.y = initialPoses[index].y + bounce;
+          winner.rotation.y = initialPoses[index].rotation + Math.sin(t * Math.PI * 2) * 0.12;
+        });
+        if (t < 1) requestAnimationFrame(frame);
+        else {
+          winners.forEach((winner, index) => {
+            winner.position.y = initialPoses[index].y;
+            winner.rotation.y = initialPoses[index].rotation;
+          });
+          stage.classList.remove('victory-feedback');
+          void stage.offsetWidth;
+          stage.classList.add('victory-feedback');
+          window.setTimeout(() => stage.classList.remove('victory-feedback'), 480);
+          resolve();
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function stopReplayTimer() {
+    if (replayTimer !== null) {
+      window.clearTimeout(replayTimer);
+      replayTimer = null;
+    }
+    if (replayWaitResolve) {
+      replayWaitResolve();
+      replayWaitResolve = null;
+    }
+  }
+
+  function clearReplay() {
+    stopReplayTimer();
+    solutionPath = [];
+    replaySnapshots = [];
+    replayIndex = 0;
+    replayHistoryBase = history.length;
+  }
+
+  function restoreSnapshot(snapshot) {
+    visualState = cloneState(snapshot.state);
+    moveCount = snapshot.moveCount;
+    makeBlock(visualState);
+    updateBoardVisuals(visualState);
+    controllerMode = snapshot.mode || 'MANUAL_PLAY';
+    renderStatus('Đã khôi phục trạng thái trước đó.');
+  }
+
+  function animateRoll(from, to, move, commitVisualState = true) {
+    // Roll around the leading edge pivot, following the pivot-edge approach
+    // in RollingCat-3D's PlayerController.cs (MIT; adapted for Three.js).
+    return new Promise(resolve => {
+      const startCenter = worldCenter(from);
+      const [sx, sy, sz] = dimensionsFor(from.o);
+      const dx = move === 'R' ? 1 : move === 'L' ? -1 : 0;
+      const dz = move === 'D' ? 1 : move === 'U' ? -1 : 0;
+      const halfExtent = dx !== 0 ? sx / 2 : sz / 2;
+      const pivotPosition = startCenter.clone().add(new THREE.Vector3(dx * halfExtent, -sy / 2, dz * halfExtent));
+      const pivot = new THREE.Group();
+      pivot.position.copy(pivotPosition);
+      scene.add(pivot);
+      scene.remove(blockMesh);
+      pivot.add(blockMesh);
+      blockMesh.position.copy(startCenter).sub(pivotPosition);
+
+      const aroundZ = dx !== 0;
+      const angle = dx > 0 ? -Math.PI / 2 : dx < 0 ? Math.PI / 2 : dz > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const blockWorldQuaternion = new THREE.Quaternion();
+      const duration = 260;
+      const startTime = performance.now();
+      function frame(now) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = t * t * (3 - 2 * t);
+        pivot.rotation.set(0, 0, 0);
+        if (aroundZ) pivot.rotation.z = angle * eased;
+        else pivot.rotation.x = angle * eased;
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          pivot.updateMatrixWorld(true);
+          blockMesh.getWorldQuaternion(blockWorldQuaternion);
+          pivot.remove(blockMesh);
+          scene.remove(pivot);
+          scene.add(blockMesh);
+          blockMesh.quaternion.copy(blockWorldQuaternion);
+          blockMesh.position.copy(worldCenter(to));
+          if (commitVisualState) visualState = cloneState(to);
+          resolve();
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function animateSplitMove(after, event) {
+    return new Promise(resolve => {
+      const cube = splitMeshes[event.cube];
+      if (!cube) {
+        makeBlock(after);
+        resolve();
+        return;
+      }
+      const start = cube.position.clone();
+      const target = new THREE.Vector3(cellToWorldX(event.to.x), BOARD_LIFT + 0.5, cellToWorldZ(event.to.z));
+      const startTime = performance.now();
+      function frame(now) {
+        const t = Math.min(1, (now - startTime) / 190);
+        const eased = t * t * (3 - 2 * t);
+        cube.position.lerpVectors(start, target, eased);
+        cube.rotation.z = -Math.sin(eased * Math.PI) * 0.22;
+        if (t < 1) requestAnimationFrame(frame);
+        else {
+          makeBlock(after);
+          resolve();
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function animateFall(from, move, fallState = null, cubeIds = null) {
+    if (fallState && from.mode === 'BLOCK' && fallState.mode === 'BLOCK' && blockMesh) {
+      await animateRoll(from, fallState, move, false);
+    } else if (fallState && from.mode === 'SPLIT' && fallState.mode === 'SPLIT') {
+      const movingIds = cubeIds || [from.active_cube];
+      for (const id of movingIds) {
+        const mesh = splitMeshes[id];
+        const cell = fallState.cubes[id];
+        if (!mesh || !cell) continue;
+        const start = mesh.position.clone();
+        const target = new THREE.Vector3(cellToWorldX(cell.x), BOARD_LIFT + 0.5, cellToWorldZ(cell.z));
+        const startTime = performance.now();
+        await new Promise(resolve => {
+          function frame(now) {
+            const t = Math.min(1, (now - startTime) / 180);
+            const eased = t * t * (3 - 2 * t);
+            mesh.position.lerpVectors(start, target, eased);
+            mesh.position.y += Math.sin(eased * Math.PI) * 0.12;
+            if (t < 1) requestAnimationFrame(frame);
+            else resolve();
+          }
+          requestAnimationFrame(frame);
+        });
+      }
+    } else if (fallState && fallState.mode !== from.mode) {
+      const logicalState = visualState;
+      makeBlock(fallState);
+      visualState = logicalState;
+    }
+
+    const fallingMeshes = blockMesh
+      ? [blockMesh]
+      : cubeIds
+        ? cubeIds.map(id => splitMeshes[id]).filter(Boolean)
+        : Object.values(splitMeshes);
+    if (!fallingMeshes.length) return Promise.resolve();
+    const directions = {
+      U: { x: 0, z: -1 },
+      D: { x: 0, z: 1 },
+      L: { x: -1, z: 0 },
+      R: { x: 1, z: 0 },
+    };
+    const direction = directions[move] || { x: 0, z: 0 };
+    return new Promise(resolve => {
+      const startPoses = fallingMeshes.map(mesh => ({
+        x: mesh.position.x,
+        y: mesh.position.y,
+        z: mesh.position.z,
+        rotationX: mesh.rotation.x,
+        rotationY: mesh.rotation.y,
+        rotationZ: mesh.rotation.z,
+      }));
+      const startTime = performance.now();
+      const rollDuration = 260;
+      const duration = 900;
+      const rollAngle = direction.x > 0
+        ? -0.65
+        : direction.x < 0
+          ? 0.65
+          : direction.z > 0
+            ? 0.65
+            : -0.65;
+      function frame(now) {
+        const elapsed = now - startTime;
+        const rollProgress = Math.min(1, elapsed / rollDuration);
+        const fallProgress = Math.max(0, Math.min(1, (elapsed - rollDuration) / (duration - rollDuration)));
+        const rollEase = rollProgress * rollProgress * (3 - 2 * rollProgress);
+        const fallEase = fallProgress * fallProgress;
+        fallingMeshes.forEach((mesh, index) => {
+          const start = startPoses[index];
+          const approach = fallState ? 0 : 0.72 * rollEase + 0.2 * fallEase;
+          mesh.position.x = start.x + direction.x * approach;
+          mesh.position.z = start.z + direction.z * approach;
+          mesh.position.y = THREE.MathUtils.lerp(
+            start.y - 0.06 * rollEase,
+            WATER_LEVEL - 1.25,
+            fallEase,
+          );
+          mesh.rotation.x = start.rotationX
+            + (direction.z ? rollAngle * rollEase : 0)
+            + 0.8 * fallProgress;
+          mesh.rotation.y = start.rotationY + 0.45 * fallProgress;
+          mesh.rotation.z = start.rotationZ
+            + (direction.x ? rollAngle * rollEase : 0)
+            + 0.55 * fallProgress;
+        });
+        if (elapsed < duration) requestAnimationFrame(frame);
+        else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function movedCubeBetween(before, after) {
+    if (before.mode !== 'SPLIT' || after.mode !== 'SPLIT') return null;
+    for (const id of ['A', 'B']) {
+      const oldCell = before.cubes[id];
+      const newCell = after.cubes[id];
+      if (oldCell.x !== newCell.x || oldCell.z !== newCell.z) {
+        return { cube: id, to: newCell };
+      }
+    }
+    return null;
+  }
+
+  async function doMove(move, fromSolver = false) {
+    if (busy || !apiReady
+      || (controllerMode !== 'MANUAL_PLAY' && controllerMode !== 'REPLAYING')) return false;
+    busy = true;
+    updateControls();
+    renderStatus(`Đang xác nhận nước đi ${MOVE_LABEL[move]}…`);
+    const before = cloneState(visualState);
+    let response;
+    try {
+      response = await engineAPI.applyAction(move, before);
+    } catch (error) {
+      busy = false;
+      controllerMode = 'ERROR';
+      renderStatus(`Lỗi kết nối Python API: ${error.message}`);
+      updateControls();
+      return false;
+    }
+    if (response.status === 'illegal') {
+      busy = false;
+      if (fromSolver) {
+        controllerMode = 'ERROR';
+        renderStatus(`Replay thất bại tại bước ${replayIndex + 1}: ${response.reason || 'action_not_allowed'}.`);
+      } else {
+        playBlockedFeedback();
+        renderStatus(response.reason || `Nước đi ${MOVE_LABEL[move]} không hợp lệ.`);
+      }
+      updateControls();
+      return false;
+    }
+    if (!fromSolver) {
+      document.getElementById('solver-metrics').textContent = '';
+      document.getElementById('solver-metrics').removeAttribute('data-solved');
+    }
+    if (response.status === 'fall') {
+      controllerMode = fromSolver ? 'ERROR' : 'LOST';
+      if (fromSolver) {
+        renderStatus(`Replay thất bại tại bước ${replayIndex + 1}: ${response.reason || 'fall'}.`);
+      } else {
+        renderStatus(`Khối bị rơi${response.reason ? `: ${response.reason}` : '.'} Có thể đặt lại hoặc hoàn tác.`);
+      }
+      const fallingCubes = before.mode === 'SPLIT' ? [before.active_cube] : null;
+      await animateFall(before, move, response.fallState, fallingCubes);
+      busy = false;
+      updateControls();
+      return !fromSolver;
+    }
+
+    const after = response.state;
+    history.push({
+      state: before,
+      moveCount,
+      mode: controllerMode === 'WON' ? 'WON' : 'MANUAL_PLAY',
+    });
+    moveCount += 1;
+    renderStatus(move === 'SWITCH' ? 'Đang đổi khối điều khiển…' : `Đang lăn ${MOVE_LABEL[move]}…`);
+    if (move === 'SWITCH') {
+      makeBlock(after);
+    } else if (before.mode === 'BLOCK' && after.mode === 'SPLIT') {
+      makeBlock(after);
+    } else if (before.mode === 'SPLIT' && after.mode === 'SPLIT') {
+      const movedCube = movedCubeBetween(before, after);
+      if (movedCube) await animateSplitMove(after, movedCube);
+      else makeBlock(after);
+    } else if (before.mode === 'SPLIT' || after.mode === 'SPLIT') {
+      makeBlock(after);
+    } else {
+      await animateRoll(before, after, move);
+    }
+    updateBoardVisuals(after);
+    const won = response.isGoal;
+    if (fromSolver) {
+      replayIndex += 1;
+      replaySnapshots[replayIndex] = {
+        state: cloneState(after),
+        moveCount,
+        mode: won ? 'WON' : 'MANUAL_PLAY',
+      };
+    }
+    controllerMode = won ? 'WON' : fromSolver ? 'REPLAYING' : 'MANUAL_PLAY';
+    if (won) await animateVictory();
+    busy = false;
+    renderStatus(won
+      ? 'Hoàn thành! Khối đã đứng thẳng trên ô đích.'
+      : fromSolver ? 'Đang phát lại lời giải…' : `Đã lăn ${MOVE_LABEL[move]}.`);
+    updateControls();
+    return true;
+  }
+
+  async function advanceReplay() {
+    if (busy || replayIndex >= solutionPath.length || !apiReady) return false;
+    controllerMode = 'REPLAYING';
+    updateControls();
+    const moved = await doMove(solutionPath[replayIndex], true);
+    if (!moved && controllerMode === 'REPLAYING') {
+      controllerMode = 'ERROR';
+      renderStatus(document.getElementById('status-message').textContent || 'Phát lại không thể tiếp tục.');
+    }
+    return moved;
+  }
+
+  async function playReplay() {
+    if (!solutionPath.length || busy || replayIndex >= solutionPath.length) return;
+    stopReplayTimer();
+    controllerMode = 'REPLAYING';
+    renderStatus('Đang phát lại lời giải…');
+    while (controllerMode === 'REPLAYING' && replayIndex < solutionPath.length) {
+      const moved = await advanceReplay();
+      if (!moved || controllerMode !== 'REPLAYING') break;
+      await new Promise(resolve => {
+        replayWaitResolve = resolve;
+        replayTimer = window.setTimeout(() => {
+          replayTimer = null;
+          replayWaitResolve = null;
+          resolve();
+        }, replayDelay);
+      });
+    }
+    if (controllerMode === 'REPLAYING') {
+      controllerMode = 'REPLAY_PAUSED';
+      renderStatus('Đã phát hết đường đi.');
+    }
+  }
+
+  function pauseReplay() {
+    if (controllerMode !== 'REPLAYING') return;
+    stopReplayTimer();
+    controllerMode = 'REPLAY_PAUSED';
+    renderStatus('Đã tạm dừng phát lại.');
+  }
+
+  function rewindReplay(targetIndex) {
+    if (busy || targetIndex < 0 || targetIndex >= replaySnapshots.length) return;
+    stopReplayTimer();
+    history.length = replayHistoryBase + targetIndex;
+    replayIndex = targetIndex;
+    restoreSnapshot(replaySnapshots[targetIndex]);
+    controllerMode = 'REPLAY_PAUSED';
+    renderStatus(`Đang ở bước ${replayIndex}/${solutionPath.length}.`);
+  }
+
+  async function replayTo(targetIndex) {
+    if (busy || targetIndex < replayIndex || targetIndex > solutionPath.length) return;
+    while (replayIndex < targetIndex && controllerMode !== 'ERROR'
+      && controllerMode !== 'WON') {
+      if (!await advanceReplay()) break;
+    }
+    if (controllerMode !== 'ERROR' && controllerMode !== 'WON') {
+      controllerMode = 'REPLAY_PAUSED';
+      renderStatus(`Đang ở bước ${replayIndex}/${solutionPath.length}.`);
+    }
+  }
+
+  function undoMove() {
+    if (busy || history.length === 0 || controllerMode === 'REPLAYING'
+      || controllerMode === 'SEARCHING') return;
+    stopReplayTimer();
+    if (controllerMode === 'REPLAY_PAUSED' && replayIndex > 0) {
+      rewindReplay(replayIndex - 1);
+      return;
+    }
+    const snapshot = history.pop();
+    clearReplay();
+    restoreSnapshot(snapshot);
+    document.getElementById('solver-metrics').textContent = '';
+    document.getElementById('solver-metrics').removeAttribute('data-solved');
+  }
+
+  async function startNewGame() {
+    const selectedLevel = document.getElementById('level-select').value;
+    if (!selectedLevel) {
+      renderStatus('API chưa cung cấp màn chơi để bắt đầu.');
+      return;
+    }
+    if (selectedLevel === currentLevel) await resetGame();
+    else await loadLevel(selectedLevel);
+  }
+
+  async function resetGame() {
+    if (busy || !apiReady) return;
+    busy = true;
+    stopReplayTimer();
+    updateControls();
+    renderStatus('Đang tải lại màn từ Python API…');
+    try {
+      const result = await engineAPI.getLevel(currentLevel);
+      boardState = result.board;
+      buildBoard(result.board);
+      visualState = cloneState(result.state);
+      moveCount = 0;
+      history = [];
+      clearReplay();
+      makeBlock(visualState);
+      controllerMode = 'MANUAL_PLAY';
+      busy = false;
+      document.getElementById('solver-metrics').textContent = '';
+      document.getElementById('solver-metrics').removeAttribute('data-solved');
+      renderLevelTitle(currentLevel, result.board);
+      renderStatus('Đã tải lại vị trí ban đầu.');
+    } catch (error) {
+      busy = false;
+      controllerMode = 'ERROR';
+      renderStatus(`Lỗi kết nối Python API: ${error.message}`);
+    }
+  }
+
+  async function autoSolve() {
+    if (busy || !apiReady || !solverAvailable) return;
+    stopReplayTimer();
+    clearReplay();
+    const metrics = document.getElementById('solver-metrics');
+    metrics.textContent = '';
+    metrics.removeAttribute('data-solved');
+    busy = true;
+    controllerMode = 'SEARCHING';
+    updateControls();
+    const algorithm = document.getElementById('algorithm-select').value;
+    renderStatus(`Đang tìm đường bằng ${algorithm} trên Python…`);
+    let result;
+    try {
+      result = await engineAPI.solve(algorithm, visualState);
+      busy = false;
+    } catch (error) {
+      busy = false;
+      controllerMode = controllerMode === 'WON' || controllerMode === 'LOST'
+        ? controllerMode
+        : 'MANUAL_PLAY';
+      if (error.status === 404 || error.status === 501 || String(error.code || '').toLowerCase() === 'solver_not_available') {
+        solverAvailable = false;
+        document.getElementById('solver-heading').textContent = 'SOLVERS · KHÔNG KHẢ DỤNG';
+        document.querySelectorAll('.solver-status').forEach(status => { status.textContent = 'Không khả dụng'; });
+        renderStatus('API solver chưa khả dụng. Bạn vẫn có thể chơi và di chuyển thủ công.');
+      } else {
+        renderStatus(`Lỗi kết nối Python API: ${error.message}`);
+      }
+      updateControls();
+      return;
+    }
+    const algorithmLabel = algorithm === 'ASTAR' ? 'A*' : algorithm;
+    metrics.dataset.solved = String(result.solved);
+    const timingSummary = result.preprocessingTime > 0
+      ? `${result.preprocessingTime.toFixed(4)} s H2 + ${Number(result.searchTime).toFixed(4)} s tìm kiếm`
+      : `${Number(result.searchTime).toFixed(4)} s tìm kiếm`;
+    metrics.textContent =
+      `${algorithmLabel} · ${result.solved ? 'Có lời giải' : 'Không có lời giải'}\n`
+      + `${result.solutionLength} bước · cost ${result.totalCost}\n`
+      + `${timingSummary} · ${Number(result.memoryUsage).toFixed(2)} MB\n`
+      + `${Number(result.expandedNodes).toLocaleString()} nút đã mở rộng`;
+    if (!result.solved) {
+      clearReplay();
+      controllerMode = 'MANUAL_PLAY';
+      renderStatus(`Không tìm thấy lời giải bằng ${algorithmLabel}.`);
+      updateControls();
+      return;
+    }
+    solutionPath = [...result.path];
+    replayIndex = 0;
+    replayHistoryBase = history.length;
+    replaySnapshots = [{ state: cloneState(visualState), moveCount }];
+    if (result.path.length === 0) {
+      controllerMode = 'WON';
+      await animateVictory();
+      renderStatus('Trạng thái hiện tại đã là trạng thái đích; không có bước phát lại.');
+      updateControls();
+      return;
+    }
+    controllerMode = 'REPLAY_PAUSED';
+    renderStatus(`Tìm thấy lời giải ${algorithmLabel}: ${result.solutionLength} bước.`);
+    updateControls();
+    await playReplay();
+  }
+
+  function formatLevelName(level) {
+    return level
+      .replace(/\.json$/i, '')
+      .replace(/^level(\d+)/i, 'Level $1')
+      .replace(/[_-]+/g, ' ');
+  }
+
+  function renderLevelTitle(level, board) {
+    document.querySelector('.level-hud').textContent = formatLevelName(level).toUpperCase();
+    document.querySelector('.board-hud').textContent = `${board.width} × ${board.height}`;
+  }
+
+  async function loadLevel(level) {
+    if (busy || !apiReady || !level) return;
+    busy = true;
+    stopReplayTimer();
+    updateControls();
+    renderStatus(`Đang tải ${level}…`);
+    try {
+      const game = await engineAPI.getLevel(level);
+      currentLevel = level;
+      document.getElementById('level-select').value = level;
+      boardState = game.board;
+      buildBoard(game.board);
+      visualState = cloneState(game.state);
+      moveCount = 0;
+      history = [];
+      clearReplay();
+      makeBlock(visualState);
+      document.getElementById('solver-metrics').textContent = '';
+      document.getElementById('solver-metrics').removeAttribute('data-solved');
+      renderLevelTitle(level, game.board);
+      controllerMode = 'MANUAL_PLAY';
+      busy = false;
+      renderStatus('Đã tải màn. Dùng phím mũi tên, WASD hoặc vuốt để di chuyển.');
+    } catch (error) {
+      busy = false;
+      controllerMode = 'ERROR';
+      document.getElementById('level-select').value = currentLevel || '';
+      renderStatus(`Không tải được màn ${level}: ${error.message}`);
+      return false;
+    }
+  }
+
+  document.getElementById('switch-cube').addEventListener('click', () => doMove('SWITCH'));
+  document.getElementById('reset').addEventListener('click', resetGame);
+  document.getElementById('new-game').addEventListener('click', startNewGame);
+  document.getElementById('undo').addEventListener('click', undoMove);
+  document.getElementById('solve').addEventListener('click', autoSolve);
+  document.getElementById('replay-first').addEventListener('click', () => rewindReplay(0));
+  document.getElementById('replay-back').addEventListener('click', () => rewindReplay(replayIndex - 1));
+  document.getElementById('replay-toggle').addEventListener('click', () => {
+    if (controllerMode === 'REPLAYING') pauseReplay();
+    else playReplay();
+  });
+  document.getElementById('replay-forward').addEventListener('click', () => replayTo(replayIndex + 1));
+  document.getElementById('replay-last').addEventListener('click', () => replayTo(solutionPath.length));
+  document.getElementById('replay-speed').addEventListener('input', event => {
+    replayDelay = Number(event.target.value);
+    updateControls();
+  });
+  document.getElementById('level-select').addEventListener('change', event => {
+    loadLevel(event.target.value);
+  });
+  window.addEventListener('keydown', event => {
+    if (event.target instanceof HTMLInputElement
+      || event.target instanceof HTMLSelectElement
+      || event.target instanceof HTMLTextAreaElement) return;
+    if (event.code === 'Space') {
+      if (controllerMode === 'REPLAYING' || controllerMode === 'REPLAY_PAUSED') {
+        event.preventDefault();
+        if (controllerMode === 'REPLAYING') pauseReplay();
+        else playReplay();
+      } else if (visualState.mode === 'SPLIT' && controllerMode === 'MANUAL_PLAY') {
+        event.preventDefault();
+        doMove('SWITCH');
+      }
+      return;
+    }
+    if (event.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      resetGame();
+      return;
+    }
+    if (event.key.toLowerCase() === 'u' || event.key === 'Backspace') {
+      event.preventDefault();
+      undoMove();
+      return;
+    }
+    const keyMap = { ArrowUp: 'U', w: 'U', W: 'U', ArrowDown: 'D', s: 'D', S: 'D', ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R' };
+    const move = keyMap[event.key];
+    if (move) { event.preventDefault(); doMove(move); }
+  });
+
+  let touchStart = null;
+  renderer.domElement.addEventListener('pointerdown', event => {
+    if (event.pointerType !== 'touch') return;
+    touchStart = { x: event.clientX, y: event.clientY };
+    controls.enabled = false;
+  });
+  window.addEventListener('pointerup', event => {
+    if (!touchStart) return;
+    const dx = event.clientX - touchStart.x;
+    const dy = event.clientY - touchStart.y;
+    touchStart = null;
+    controls.enabled = true;
+    if (Math.hypot(dx, dy) < 42) return;
+    const move = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+    doMove(move);
+  });
+  window.addEventListener('pointercancel', () => {
+    touchStart = null;
+    controls.enabled = true;
+  });
+
+  function resize() {
+    const width = stage.clientWidth;
+    const height = stage.clientHeight;
+    if (!width || !height) return;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(stage);
+  resize();
+  renderStatus('Đang tải model và kết nối Python API…');
+  Promise.all([engineAPI.getLevels(), loadBlockAsset()]).then(async ([levels, assets]) => {
+    if (levels.length === 0) throw new Error('GET /levels không có màn chơi nào.');
+    blockAssetModel = assets;
+    const levelSelect = document.getElementById('level-select');
+    levelSelect.replaceChildren(...levels.map(level => {
+      const option = document.createElement('option');
+      option.value = level;
+      option.textContent = formatLevelName(level);
+      return option;
+    }));
+    currentLevel = levels[0];
+    const game = await engineAPI.getLevel(currentLevel);
+    boardState = game.board;
+    buildBoard(game.board);
+    visualState = cloneState(game.state);
+    makeBlock(visualState);
+    renderLevelTitle(currentLevel, game.board);
+    apiReady = true;
+    busy = false;
+    controllerMode = 'MANUAL_PLAY';
+    renderStatus('Đã kết nối. Dùng phím mũi tên, WASD hoặc vuốt để di chuyển.');
+  }).catch(error => {
+    makeBlock(visualState);
+    busy = false;
+    controllerMode = 'ERROR';
+    renderStatus(`Chưa kết nối API theo contract mới: ${error.message}`);
+  });
+  renderer.setAnimationLoop(time => {
+    controls.update();
+    waterTexture.offset.x = (time * 0.000018) % 1;
+    waterTexture.offset.y = (1 - (time * 0.000010) % 1) % 1;
+    waterDetailTexture.offset.x = (1 - (time * 0.000027) % 1) % 1;
+    waterDetailTexture.offset.y = (time * 0.000016) % 1;
+    const waterPositions = ocean.geometry.attributes.position;
+    const waterPhase = time * 0.00035;
+    for (let i = 0; i < waterPositions.count; i++) {
+      const offset = i * 3;
+      const x = oceanBasePositions[offset];
+      const z = oceanBasePositions[offset + 1];
+      const wave = Math.sin((x + waterPhase * 7) * 0.11) * 0.065
+        + Math.cos((z - waterPhase * 5) * 0.095) * 0.048
+        + Math.sin((x + z + waterPhase * 3) * 0.16) * 0.014;
+      waterPositions.array[offset + 2] = wave;
+    }
+    waterPositions.needsUpdate = true;
+    ocean.geometry.computeVertexNormals();
+    beachBallMeshes.forEach((ball, index) => {
+      ball.rotation.y = time * (index === 0 ? 0.00035 : -0.00035);
+      ball.rotation.z = Math.sin(time * 0.00045 + index) * 0.12;
+    });
+    renderer.render(scene, camera);
+  });
+</script>
+</body>
+</html>

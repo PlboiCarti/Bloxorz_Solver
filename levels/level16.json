@@ -1,0 +1,102 @@
+{
+  "name": "level16 - long distance relay",
+  "grid": [
+    ".S########o####",
+    ".....##......##",
+    ".....##......##",
+    ".............##",
+    ".............##",
+    "###..##BB#o####",
+    "#G#..##........",
+    "###..##........",
+    ".##..##........",
+    ".#BB######o###."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        5,
+        7
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "A2",
+      "cell": [
+        5,
+        8
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        9,
+        2
+      ],
+      "initial": "open"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        9,
+        3
+      ],
+      "initial": "open"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        0,
+        10
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "A2",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        5,
+        10
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_closed"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_closed"
+        }
+      ]
+    },
+    {
+      "cell": [
+        9,
+        10
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "permanent_open"
+        },
+        {
+          "bridge": "B2",
+          "mode": "permanent_open"
+        }
+      ]
+    }
+  ]
+}

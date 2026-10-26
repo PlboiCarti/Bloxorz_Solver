@@ -1,0 +1,47 @@
+{
+  "name": "level6 - soft switch, toggle bridge",
+  "grid": [
+    "......###......",
+    "####..#o#......",
+    "#S#######BB###G",
+    "####.......####",
+    "...........####"
+  ],
+  "bridges": [
+    {
+      "id": "B1",
+      "cell": [
+        2,
+        9
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B2",
+      "cell": [
+        2,
+        10
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        1,
+        7
+      ],
+      "type": "soft",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        },
+        {
+          "bridge": "B2",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}

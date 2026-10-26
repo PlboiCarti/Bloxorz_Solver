@@ -1,0 +1,61 @@
+{
+  "name": "level14 - switchback bridges",
+  "grid": [
+    "............x",
+    ".....###..###",
+    ".....#x#####B",
+    "...#####..##.",
+    "...#G#B...##.",
+    ".#####...####",
+    "##S#.....####",
+    "####..#####..",
+    ".....###.....",
+    ".....###....."
+  ],
+  "bridges": [
+    {
+      "id": "A1",
+      "cell": [
+        2,
+        12
+      ],
+      "initial": "closed"
+    },
+    {
+      "id": "B1",
+      "cell": [
+        4,
+        6
+      ],
+      "initial": "closed"
+    }
+  ],
+  "switches": [
+    {
+      "cell": [
+        0,
+        12
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "B1",
+          "mode": "toggle"
+        }
+      ]
+    },
+    {
+      "cell": [
+        2,
+        6
+      ],
+      "type": "heavy",
+      "targets": [
+        {
+          "bridge": "A1",
+          "mode": "toggle"
+        }
+      ]
+    }
+  ]
+}
