@@ -345,6 +345,6 @@ The engine applies switch effects deterministically: it inspects the resulting b
 | Stream                   | Can rely on now                                                       | Still open                           |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------ |
 | TV2 (advanced mechanics) | Implemented Board loader, Engine transitions, and confirmed mechanics | Automated tests                      |
-| TV3 (BFS/DFS)            | `solvers/bfs.py`, `solvers/dfs.py`, 20 GUI levels, benchmark runner   | Automated tests                      |
+| TV3 (BFS/DFS)            | `solvers/bfs.py`, `solvers/dfs.py`, 20 GUI levels, 120-case benchmark | Automated tests                      |
 | TV4 (UCS/A\*)            | `solvers/ucs.py`, `solvers/astar.py`, H1/H2, weighted cost            | Team confirmation of costs and H2 guarantees |
 | TV5 (GUI/integration)    | GUI, same-origin server, `/solve` + replay, board/state/transition wire schema | Final cost values             |

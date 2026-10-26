@@ -36,7 +36,7 @@
 | Game Engine | TV1/2  | `game/`      | IMPLEMENTED (core + advanced mechanics)           |
 | AI Solver   | TV3/4  | `solvers/`   | IMPLEMENTED (BFS/DFS/UCS/A*)                      |
 | GUI         | TV5    | `gui/`       | INTEGRATED (`gui/index.html`) |
-| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark chạy trên 20 level GUI |
+| Integration | lead   | `server.py`, `experiments/` | `server.py` phục vụ GUI/API; benchmark chạy trên test set cố định 120 case (100 độc lập + 20 level GUI) |
 
 Chi tiết ranh giới code: `Agents.md` §"Architecture rules".
 

@@ -72,22 +72,24 @@ class H2Heuristic:
     abstract_state_count: int
     abstract_edge_count: int
 
-    def __call__(self, state: State) -> float:
-        """Tra H2 cho concrete state."""
+    def distance(self, state: State) -> float:
+        """Khoảng cách abstract d_alpha của state; ``inf`` nếu không tới được goal."""
         if state.split_mode:
             if state.cube1_position is None or state.cube2_position is None:
-                return 0.0
+                return math.inf
             split_pair = _canonical_pair(state.cube1_position, state.cube2_position)
             if split_pair is None:
-                return 0.0
-            value = self.distances.get(split_pair)
-        else:
-            pose = AbstractPose(state.block_position, state.orientation)
-            value = self.distances.get(pose)
+                return math.inf
+            return self.distances.get(split_pair, math.inf)
+        pose = AbstractPose(state.block_position, state.orientation)
+        return self.distances.get(pose, math.inf)
 
-        # Một legal concrete state phải map được vào relaxed graph. Fallback
-        # về 0 an toàn hơn infinity nếu builder/context có lỗi chưa phát hiện.
-        return 0.0 if value is None or math.isinf(value) else value
+    def __call__(self, state: State) -> float:
+        """Tra H2 cho concrete state."""
+        # Fallback inf -> 0 giữ admissible nhưng làm mất consistency tại cạnh đi
+        # vào ngõ cụt (xem docs/deep-research-report.md, mục điều chỉnh, điểm 3).
+        value = self.distance(state)
+        return 0.0 if math.isinf(value) else value
 
 
 def _valid_pose(pose: AbstractPose, context: HeuristicContext) -> bool:

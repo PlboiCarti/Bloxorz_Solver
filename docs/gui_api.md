@@ -387,7 +387,7 @@ def step_cost(self, state: State, action: Action, next_state: State) -> float: .
 - `total_cost` is the sum of `step_cost` over the path and may differ from `solution_length`.
 - **BFS, DFS:** ignore cost during search; still report `total_cost` as the sum.
 - **UCS:** priority `g` = sum of `step_cost` from start.
-- **A\*:** `f = g + h`; the current implementation uses precomputed cost-aware H2 by default. It builds a relaxed graph with orientation and static VOID topology, and enables split cube-pair states. Engine supplies immutable heuristic inputs through `HeuristicContext`. Admissibility and consistency still need review against final game/cost semantics before claiming optimality.
+- **A\*:** `f = g + h`; the current implementation uses precomputed cost-aware H2 by default. It builds a relaxed graph with orientation and static VOID topology, and enables split cube-pair states. Engine supplies immutable heuristic inputs through `HeuristicContext`. H2 is admissible (proof and full-state-space check in `docs/deep-research-report.md`), so A* returns optimal-cost paths; the current fallback (∞ → 0) is not consistent on `level15`/`level17`.
 
 ---
 

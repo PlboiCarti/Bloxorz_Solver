@@ -1,81 +1,123 @@
-# Benchmark
+# Thực nghiệm và đánh giá hiệu năng
 
-Benchmark dùng đúng các màn đang được GUI cung cấp trong `levels/`.
-`run_experiments.py` tự quét `levels/level*.json`, nạp board bằng cùng
-`load_board()` như server và lấy trạng thái bắt đầu bằng
-`Engine.get_initial_state()`.
+Thư mục này chứa bộ dữ liệu benchmark cố định 120 case (100 bản đồ thiết kế độc lập + 20 level GUI), cùng các tập lệnh dùng để so sánh BFS, DFS, UCS và A* trên cùng một tập hợp bài toán tìm kiếm.
 
-## Chạy benchmark
+## Các tệp trong thư mục
 
-Chạy từ thư mục gốc repository:
+- `test_set.json`: Bộ dữ liệu cố định gồm 120 case. Không thay đổi tệp này giữa các lần chạy thuật toán để đảm bảo tính công bằng khi so sánh.
+- `benchmark.py`: Chứa danh sách đăng ký thuật toán giải và cơ chế xử lý thời gian chờ (timeout) dùng chung.
+- `build_test_set.py`: Nhúng 20 level GUI (`levels/level*.json`) vào `test_set.json` dưới dạng case `GUI-001`…`GUI-020`. Chạy lại được nhiều lần: chỉ thay phần case GUI, giữ nguyên 100 case độc lập.
+- `run_experiments.py`: Điểm khởi chạy benchmark, đọc dữ liệu bản đồ được nhúng trong bộ dữ liệu.
+- `verify_heuristic.py`: Kiểm chứng thực nghiệm admissible/consistent của H2 và H1 trên toàn bộ state đạt được của từng case; ghi `heuristic_check.csv`.
+- `results.csv` và tệp metadata tương ứng: Lưu kết quả đo lường từ bộ dữ liệu test_set.json.
+- `analysis.ipynb`: Notebook để phân tích và trực quan hóa kết quả.
 
-```powershell
-python -m experiments.run_experiments
-```
+## Thiết kế bộ dữ liệu
 
-Mặc định runner chạy BFS, DFS, UCS và A* trên toàn bộ 20 level GUI:
+Bộ dữ liệu gồm hai phần:
 
-```text
-20 level × 4 thuật toán = 80 lượt chạy
-```
+- **`BXN-001`…`BXN-100`**: 100 bản đồ 13 × 17 được thiết kế độc lập, không lấy từ hoặc suy ra từ level GUI.
+- **`GUI-001`…`GUI-020`**: 20 level GUI (`level1.json`…`level20.json`), nhúng nguyên bản, gồm cả heavy switch và split switch.
 
-Kết quả được ghi vào:
+Mỗi trường hợp chứa đầy đủ định nghĩa bản đồ và trạng thái khởi đầu chuẩn tắc (canonical initial state). Vì vậy, quá trình benchmark không đọc `levels/`. Nếu sửa level GUI, chạy `python -m experiments.build_test_set` để cập nhật test set rồi chạy lại benchmark.
 
-```text
-experiments/results.csv
-experiments/results_metadata.json
-```
+100 case độc lập được chia đều thành bốn nhóm, mỗi nhóm gồm 25 trường hợp:
 
-Các tùy chọn hiện có:
+- **`basic`**: Địa hình thông thường, không có ô dễ vỡ, cầu hoặc công tắc.
+- **`fragile`**: Có các ô dễ vỡ, được đặt ngoài một đường đi hợp lệ đã biết.
+- **`switches_bridges`**: Công tắc mềm điều khiển một cây cầu đang đóng ở trạng thái ban đầu.
+- **`combined`**: Kết hợp ô dễ vỡ với cầu được điều khiển bằng công tắc và đang đóng ở trạng thái ban đầu.
 
-```powershell
-python -m experiments.run_experiments --timeout 30
-python -m experiments.run_experiments --algorithms BFS "A*"
-python -m experiments.run_experiments --repeat 3
-python -m experiments.run_experiments --output experiments/results_trial.csv
-```
+Case GUI được xếp vào cùng bốn nhóm theo mechanics có trên board (`switches_bridges` 11, `basic` 3, `fragile` 3, `combined` 3).
 
-## Chỉ số theo yêu cầu PDF
+Tất cả các trường hợp đều đã được phân tích cú pháp và giải thành công bằng BFS. Mỗi case độc lập còn đáp ứng hai điều kiện (case GUI giữ nguyên, không lọc theo điều kiện này):
 
-Với mỗi level và mỗi thuật toán, CSV ghi bốn chỉ số cần cho phần thực nghiệm:
+- Độ dài lời giải tối ưu được BFS xác minh đạt ít nhất 18 hành động.
+- Số trạng thái được BFS mở rộng đạt ít nhất 100.
 
-- `search_time_seconds`: thời gian tìm kiếm;
-- `peak_memory_mb`: bộ nhớ peak được đo bằng `tracemalloc`;
-- `expanded_nodes`: số trạng thái được mở rộng;
-- `solution_length`: số action trong lời giải.
+Các điều kiện này xác nhận tính hợp lệ và mức độ không tầm thường của bài toán, nhưng không đảm bảo mọi thuật toán đều tìm được lời giải có cùng độ dài. Đặc biệt, DFS không đảm bảo tìm được lời giải tối ưu.
 
-CSV còn giữ `status` và thông tin định danh để phân biệt solved, unsolved,
-timeout hoặc error khi lập bảng báo cáo. Các trường cost/preprocessing là dữ liệu
-đã có trong `SearchResult` của solver và không thay thế bốn chỉ số bắt buộc.
+Nhãn độ khó được phân chia gần đúng dựa trên độ dài lời giải tối ưu đã xác minh bằng BFS:
 
-Runner nhóm level theo mechanics để mô tả bộ test trong report:
+- **Easy**: Dưới 22 hành động.
+- **Medium**: Từ 22 đến 31 hành động.
+- **Hard**: Từ 32 hành động trở lên.
 
-- `basic`: không có fragile, bridge hoặc switch;
-- `fragile`: có fragile tile nhưng không có bridge/switch;
-- `switches_bridges`: có bridge hoặc switch;
-- `combined`: có fragile cùng bridge/switch.
+Độ dài lời giải chỉ là một chỉ số đại diện cho độ khó. Số trạng thái được mở rộng, hệ số phân nhánh và mức độ tương tác giữa các ô đặc biệt cũng ảnh hưởng đến độ khó thực tế.
 
-| Nhóm | Level |
-| --- | --- |
-| `basic` | `level1`-`level3` |
-| `fragile` | `level4`, `level5`, `level12` |
-| `switches_bridges` | `level6`-`level9`, `level11`, `level13`-`level17`, `level19` |
-| `combined` | `level10`, `level18`, `level20` |
+## Cách chạy benchmark
 
-`test_set.json` custom đã được loại khỏi project. Benchmark hiện tại chỉ lấy dữ
-liệu từ các level GUI.
+Chạy các lệnh sau từ thư mục gốc của repository bằng PowerShell, sau khi đã kích hoạt `.venv`.
+
+Chạy benchmark với cả bốn thuật toán trên 120 trường hợp, tương ứng tổng cộng 480 lượt chạy:
+
+    python -m experiments.run_experiments
+
+Thời gian chờ mặc định là 15 giây cho mỗi thuật toán trên mỗi trường hợp.
+
+Để chạy lặp lại mỗi trường hợp ba lần:
+
+    python -m experiments.run_experiments --repeat 3
+
+Một số tùy chọn hữu ích khác:
+
+- Tăng thời gian chờ lên 30 giây cho mỗi lượt chạy:
+
+      python -m experiments.run_experiments --timeout 30
+
+- Chỉ chạy BFS và A*:
+
+      python -m experiments.run_experiments --algorithms BFS "A*"
+
+- Ghi kết quả vào một tệp CSV riêng để giữ lại kết quả cũ:
+
+      python -m experiments.run_experiments --output experiments/results_trial.csv
+
+Mỗi lần chạy sẽ ghi đè tệp CSV được chỉ định và tạo thêm một tệp metadata tương ứng có hậu tố `_metadata.json`. Hãy sử dụng đường dẫn `--output` khác nhau nếu muốn lưu giữ và so sánh kết quả từ nhiều lần chạy.
+
+## Các chỉ số đánh giá
+
+Benchmark ghi nhận các chỉ số sau:
+
+- **`search_time_seconds`**: Thời gian tìm kiếm do thuật toán giải báo cáo, tính bằng giây. Thời gian tiền xử lý heuristic của A* không được tính vào chỉ số này mà được ghi riêng.
+- **`preprocessing_time_seconds`**: Thời gian xây dựng dữ liệu tiền xử lý heuristic, chủ yếu liên quan đến A*.
+- **`peak_memory_mb`**: Bộ nhớ cấp phát đỉnh được đo bằng `tracemalloc`, tính theo MB thập phân. Chỉ số này không đại diện cho tổng dung lượng bộ nhớ RAM mà toàn bộ tiến trình sử dụng (RSS).
+- **`expanded_nodes`**: Số trạng thái được thuật toán mở rộng. Trạng thái đích không được tính vào chỉ số này.
+- **`solution_length`**: Số hành động trong đường đi được trả về.
+- **`total_cost`**: Tổng chi phí của đường đi, được tính bằng cách cộng `Engine.step_cost` cho từng bước.
+- **`status`**: Trạng thái kết thúc của lượt chạy, gồm `solved`, `unsolved`, `timeout` hoặc `error`.
 
 ## Kết quả gần nhất
 
-Lần chạy `20261023T154554Z` (xem `results_metadata.json`): `80/80 solved`,
-không timeout, không error. Trung bình theo thuật toán:
+Lượt chạy `20261026T040427Z` (timeout 15 s, `repeat 1`): 480/480 lượt solved, không timeout, không error. Giá trị trung bình:
 
-| Thuật toán | Số lượt | Search time (s) | Peak memory (MB) | Expanded nodes | Solution length |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| BFS | 20 | 0.863338 | 0.260370 | 1312.05 | 41.65 |
-| DFS | 20 | 0.206915 | 0.095740 | 335.70 | 179.45 |
-| UCS | 20 | 0.875544 | 0.325079 | 1154.35 | 41.65 |
-| A* | 20 | 0.353074 | 0.284946 | 392.45 | 41.65 |
+| Thuật toán | Phần | Search time (s) | Peak memory (MB) | Expanded nodes | Solution length | Total cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| BFS | 120 case | 0.0434 | 0.072 | 418.9 | 27.21 | 32.34 |
+| DFS | 120 case | 0.0190 | 0.045 | 196.3 | 94.03 | 113.69 |
+| UCS | 120 case | 0.0434 | 0.094 | 392.0 | 27.21 | 32.30 |
+| A* | 120 case | 0.0116 | 0.162 | 87.2 | 27.21 | 32.30 |
+| BFS | 100 BXN | 0.0185 | 0.035 | 240.3 | 24.32 | 28.85 |
+| DFS | 100 BXN | 0.0148 | 0.036 | 168.5 | 76.94 | 90.36 |
+| UCS | 100 BXN | 0.0201 | 0.048 | 239.5 | 24.32 | 28.81 |
+| A* | 100 BXN | 0.0031 | 0.138 | 26.2 | 24.32 | 28.81 |
+| BFS | 20 GUI | 0.1682 | 0.257 | 1312.0 | 41.65 | 49.79 |
+| DFS | 20 GUI | 0.0401 | 0.092 | 335.7 | 179.45 | 230.31 |
+| UCS | 20 GUI | 0.1599 | 0.323 | 1154.3 | 41.65 | 49.72 |
+| A* | 20 GUI | 0.0543 | 0.281 | 392.4 | 41.65 | 49.72 |
 
-Giá trị chi tiết theo từng level nằm trong `results.csv`. Thời gian và memory
-phụ thuộc môi trường chạy; khi chạy lại, cập nhật bảng này cùng CSV/metadata.
+A* có thêm `preprocessing_time_seconds` trung bình 0.0164 s cho việc dựng H2. Total cost của A* trùng UCS ở cả 120 case. Thời gian phụ thuộc máy; xem `results_metadata.json` để biết môi trường chạy.
+
+## Kiểm chứng heuristic
+
+    python -m experiments.verify_heuristic
+
+Duyệt toàn bộ state đạt được của 120 case (115.043 state, 379.858 cạnh `OK`), tính chi phí tối ưu thật h* bằng reverse Dijkstra từ goal, rồi kiểm tra:
+
+| Heuristic | Vi phạm admissible | Vi phạm consistent | h(goal) ≠ 0 |
+| --- | --- | --- | --- |
+| `H2` (đúng hàm A* dùng, ∞ → 0) | 0 | 84 (GUI-015: 60, GUI-017: 24) | 0 |
+| `H2_inf` (giữ ∞, `H2Heuristic.distance`) | 0 | 0 | 0 |
+| `H1` (baseline) | 0 | 21 (GUI-008/009/010/015/017) | 0 |
+
+Lập luận chứng minh và giải thích các vi phạm: `docs/deep-research-report.md`, mục "Điều chỉnh khi cài đặt".

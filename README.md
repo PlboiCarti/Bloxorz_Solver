@@ -12,8 +12,12 @@ Python Engine; GUI chỉ hiển thị trạng thái, gửi action và phát lạ
   `server.py`.
 - Có 20 màn GUI: `levels/level1.json` đến `levels/level20.json`.
 - BFS, DFS, UCS và A* dùng chung `Engine` và trả về `SearchResult` có metrics.
-- Benchmark dùng chính 20 level GUI: 80 lượt chạy cho bốn thuật toán. Kết quả
-  hiện tại: 80/80 lượt solved, không timeout và không error.
+- Benchmark dùng bộ test cố định 120 case (`experiments/test_set.json`): 100 bản
+  đồ độc lập và 20 level GUI được nhúng sẵn board. 480 lượt chạy cho bốn thuật
+  toán; kết quả hiện tại: 480/480 lượt solved, không timeout và không error.
+- H2 được chứng minh admissible bằng lập luận và kiểm chứng trên toàn bộ state
+  của 120 case; hàm A* đang dùng chưa consistent ở 2 level (xem
+  `docs/deep-research-report.md`).
 - Checkout hiện không có automated test suite; thư mục `tests/` không còn mã
   nguồn test. Các file cache Python được bỏ qua bởi `.gitignore`.
 
@@ -58,7 +62,10 @@ solvers/                      # BFS, DFS, UCS, A* và heuristic H1/H2
 levels/                       # level1.json ... level20.json của GUI
 gui/index.html                # GUI Three.js
 server.py                     # FastAPI app và static file server
-experiments/                  # benchmark trên các level GUI
+experiments/                  # benchmark trên bộ test cố định
+  test_set.json               # 120 case: 100 bản đồ độc lập + 20 level GUI
+  build_test_set.py           # nhúng lại 20 level GUI vào test_set.json
+  verify_heuristic.py         # kiểm chứng admissible/consistent của H1/H2
   benchmark.py                # đăng ký solver và timeout dùng chung
   run_experiments.py          # benchmark runner
   results.csv                 # kết quả benchmark gần nhất
@@ -100,8 +107,7 @@ Các metadata bridge/switch phải khớp với ký tự trong grid. `load_board
 `Engine` thực hiện validation trước khi level được dùng bởi server, GUI hoặc
 solver.
 
-Schema đầy đủ và ví dụ: `docs/api.md` §6.3. Bảng phân nhóm mechanics của 20
-level: `experiments/README.md`.
+Schema đầy đủ và ví dụ: `docs/api.md` §6.3.
 
 ## Solver
 
@@ -143,14 +149,16 @@ game; sau mỗi action, GUI dùng state do server trả về để cập nhật 
 ## Benchmark theo yêu cầu đồ án
 
 PDF yêu cầu đánh giá trên một bộ test cố định, dùng chung cho mọi thuật toán và
-đo search time, memory usage, expanded nodes, solution length. Runner chạy trực
-tiếp trên 20 level GUI (20 × 4 = 80 lượt):
+đo search time, memory usage, expanded nodes, solution length. Runner chạy trên
+120 case của `experiments/test_set.json` (120 × 4 = 480 lượt). Level GUI được
+nhúng vào test set; sau khi sửa `levels/`, chạy `python -m experiments.build_test_set`
+trước khi benchmark:
 
 ```powershell
 python -m experiments.run_experiments
 ```
 
-Tùy chọn, định nghĩa các cột CSV, cách nhóm level và bảng kết quả gần nhất nằm
+Tùy chọn, thiết kế bộ test, định nghĩa các cột CSV và bảng kết quả gần nhất nằm
 trong [`experiments/README.md`](experiments/README.md).
 
 ## Tài liệu liên quan

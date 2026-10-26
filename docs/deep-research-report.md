@@ -28,29 +28,56 @@
 
    Tính cost cạnh theo orientation của state **nguồn** là cần thiết: nếu chỉ đếm số bước rồi nhân với \(\min(1.5, 1.0) = 1.0\) thì heuristic vẫn an toàn nhưng yếu hơn.
 2. **Kiến trúc.** Báo cáo dùng adapter cho các repo khác (`Problem.result()`, Erroler). Repo này không có các adapter đó. Solver không đọc `engine.board`; Engine cung cấp snapshot bất biến `HeuristicContext(support_cells, goal, split_switches, stand_roll, lie_roll)`. A* dựng H2 một lần cho mỗi level và báo thời gian dựng riêng trong `SearchResult.preprocessing_time`, đúng như gợi ý ở mục "Preprocessing có tính vào Search Time không?".
-3. **Fallback về 0 cho ngõ cụt.** `H2Heuristic.__call__` trả `0` cả khi state không có trong bảng lẫn khi khoảng cách là \(\infty\). State có \(d_lpha=\infty\) là **ngõ cụt thật**: ngay trên đồ thị nới lỏng cũng không tới được goal, nên concrete càng không tới được. Fallback này giữ admissibility (\(0\le h^*=\infty\)) nhưng **làm mất consistency** ở các cạnh đi vào ngõ cụt (xem mục kiểm chứng bên dưới).
-4. **A\*** giữ `best_cost` (g-score) để loại bản ghi cũ; heuristic không được dùng làm điều kiện visited.
+3. **Fallback về 0 cho ngõ cụt.** `H2Heuristic.distance` trả \(d_\alpha\), bằng \(\infty\) khi abstract state không tới được goal. `H2Heuristic.__call__` (hàm A\* dùng) đổi \(\infty\) thành `0`. State có \(d_\alpha=\infty\) là **ngõ cụt thật**: ngay trên đồ thị nới lỏng cũng không tới được goal, nên concrete càng không tới được. Fallback này giữ admissibility (\(0\le h^*=\infty\)) nhưng **làm mất consistency** ở các cạnh đi vào ngõ cụt (Mệnh đề 3 bên dưới).
+4. **A\*** giữ `best_cost` (g-score) và cho phép reopen; goal test khi pop. Heuristic không được dùng làm điều kiện visited.
 
-### Vì sao chứng minh của báo cáo áp dụng được cho code
+### Chứng minh bằng lập luận
 
-Với mọi transition concrete `OK` \(s \xrightarrow{a} s'\), có hai trường hợp:
+Ký hiệu: \(S\) là tập concrete state, \(c(s,a,s')=\) `Engine.step_cost` \(\in\{1.5, 1.0, 0.1\}\), \(h^*(s)\) là chi phí tối ưu thật từ \(s\) tới goal (\(\infty\) nếu không tới được). Gọi \(G_\alpha\) là đồ thị abstract trong `_build_abstract_graph`, \(\alpha\) là ánh xạ trong `H2Heuristic.distance`, và \(d_\alpha(x)\) là khoảng cách ngắn nhất từ \(x\) tới \(N(g,\text{STANDING})\) trên \(G_\alpha\) (reverse Dijkstra cho đúng giá trị này vì mọi trọng số \(>0\)).
 
-- \(\alpha(s)\to\alpha(s')\) là một cạnh abstract có cost bằng `step_cost(s, a, s')`. Các trường hợp: lăn thường, lăn lên `P` rồi split/merge, di chuyển cube rồi merge.
-- \(\alpha(s)=\alpha(s')\) khi `SWITCH_CUBE`. Bật/tắt bridge không làm đổi \(\alpha\).
+**Bổ đề 1 (mô phỏng cạnh).** Với mọi transition `OK` \(s\xrightarrow{a}s'\):
 
-Vì vậy \(h(s)\le c(s,a,s')+h(s')\) (consistent), và \(h(\text{goal})=0\), nên \(h\) cũng admissible. Đây đúng là lập luận ở mục "Chứng minh admissibility/consistency" bên dưới, chỉ thay "abstract cost ≤ concrete cost" bằng "abstract cost = concrete cost". Lập luận này đúng cho \(d_lpha\) (khi giữ nguyên \(\infty\)). Hàm trong code lệch khỏi nó đúng một chỗ: fallback \(\infty	o 0\) ở điểm 3.
+- (a) nếu \(a=\) `SWITCH_CUBE` thì \(\alpha(s)=\alpha(s')\), vì cặp cube không có thứ tự và vị trí không đổi;
+- (b) ngược lại, \(G_\alpha\) có cạnh \(\alpha(s)\to\alpha(s')\) với trọng số **đúng bằng** \(c(s,a,s')\).
 
-**Kiểm chứng thực nghiệm (2026-10-26).** Duyệt BFS toàn bộ state đạt được của 20 level (314.193 cạnh `OK`), kiểm tra \(h(s)\le c(s,a,s')+h(s')\) và \(h(	ext{goal})=0\):
+*Chứng minh (b), theo từng nhánh của `Engine.transition`:*
 
-- 18/20 level: 0 vi phạm.
-- `level15`: 60 vi phạm; `level17`: 24 vi phạm. Tất cả đều là cạnh **ghép khối** (split → merge) đi vào một pose ngõ cụt (`level15`: \((3,3)\) HORIZONTAL; `level17`: \((6,1)\) VERTICAL), nơi \(d_lpha=\infty\) nhưng code trả 0.
-- \(h(	ext{goal})=0\) ở mọi goal state; A\* cho cùng total cost với UCS trên cả 20 level (`experiments/results.csv`).
+1. **Lăn khối nguyên** \((p,o)\to(p',o')\) không chạm `P`. Concrete `OK` ⇒ mọi ô của \((p',o')\) được đỡ dưới bridge state hiện tại ⇒ không phải VOID ⇒ thuộc \(R\). Vậy \(N(p',o')\in\) `poses` và có cạnh với trọng số theo orientation nguồn, đúng như `step_cost`. Soft/heavy switch chỉ đổi bridge state, mà \(\alpha\) bỏ bridge state.
+2. **Lăn đứng lên split switch `P`.** Concrete gọi `make_split_state(split_cells)`, rồi `try_merge`, rồi kiểm tra nền lần nữa. `OK` ⇒ hai ô đích được đỡ ⇒ thuộc \(R\). `_abstract_split_state` tạo đúng cặp canonical, hoặc đúng pose đã ghép (anchor trên-trái, cùng quy tắc `try_merge`). Cạnh có trọng số `stand_roll` vì nguồn đang đứng. Nằm ngang lên `P` không kích hoạt split ở cả hai phía.
+3. **Di chuyển cube khi split.** Concrete chỉ di chuyển cube active. Abstract cho phép di chuyển cube nào cũng được, nên tập cạnh abstract **chứa** cạnh concrete. `cube_collision` (hai cube trùng ô) là `ILLEGAL` ở concrete và không có cạnh ở abstract. Sau khi di chuyển, concrete `try_merge` khớp với `_merged_pose`. Cube không kích hoạt split hay heavy switch. Trọng số `stand_roll` khớp `step_cost`, vì split state luôn có `orientation = STANDING`.
+4. Cặp cube đạt được ở concrete luôn có trong `pending`: concrete chỉ vào split qua `split_cells` của một `P`, và `pending` đóng dưới mọi bước di chuyển cube.
 
-Viết vào report: H2 **admissible** trên mọi level, nên A\* (có cập nhật lại `best_cost`, tức cho phép reopen) vẫn tối ưu. H2 **consistent** ở mọi cạnh không đi vào ngõ cụt. Nếu sửa code để giữ \(\infty\) (và bỏ qua không đưa vào frontier các state có \(h=\infty\)), H2 sẽ consistent hoàn toàn.
+Mọi ô fragile, bridge và switch đều thuộc \(R\), nên mọi chỗ concrete làm `FALL` chỉ khiến concrete có **ít** cạnh hơn abstract, không bao giờ nhiều hơn. ∎
+
+**Mệnh đề 2 (\(d_\alpha\) consistent và admissible).** Đặt \(h(s)=d_\alpha(\alpha(s))\), giữ nguyên \(\infty\). Khi đó:
+
+- **Consistent.** Theo Bổ đề 1 và bất đẳng thức tam giác của đường đi ngắn nhất: \(h(s)\le w(\alpha(s),\alpha(s'))+h(s')=c(s,a,s')+h(s')\) ở trường hợp (b). Ở trường hợp (a), \(h(s)=h(s')\le 0.1+h(s')\). Quy ước \(\infty\le c+\infty\).
+- **Goal.** Concrete goal là khối đứng tại \(g\) và không split, nên \(\alpha(\text{goal})=N(g,\text{STANDING})\) và \(h(\text{goal})=0\).
+- **Admissible.** Lấy đường tối ưu \(s=s_0\to\dots\to s_k=\text{goal}\). Cộng dồn bất đẳng thức consistent dọc đường đi: \(h(s)\le\sum c_i+h(\text{goal})=h^*(s)\). Nếu \(h^*(s)=\infty\) thì hiển nhiên.
+- **Hệ quả.** \(h(s)=\infty\Rightarrow h^*(s)=\infty\). Vậy A\* có thể bỏ, không đưa vào frontier, mọi state có \(h=\infty\) mà không mất lời giải. ∎
+
+**Mệnh đề 3 (hàm A\* đang dùng: admissible, nhưng không consistent).** Đặt \(\tilde h=d_\alpha\) nếu hữu hạn, ngược lại \(\tilde h=0\).
+
+- **Admissible.** Nếu \(d_\alpha\) hữu hạn thì \(\tilde h=h\le h^*\) theo Mệnh đề 2. Nếu \(d_\alpha=\infty\) thì \(\tilde h=0\le h^*\). Vì A\* trong repo cho reopen và goal test khi pop, admissible là đủ để A\* trả lời giải tối ưu.
+- **Không consistent.** Có thể tồn tại cạnh \(s\to s'\) với \(d_\alpha(s)\) hữu hạn và \(d_\alpha(s')=\infty\), tức state nguồn còn đường khác tới goal nhưng bước này đi vào ngõ cụt. Khi đó \(\tilde h(s)=d_\alpha(s)>c+0=c+\tilde h(s')\) bất cứ khi nào \(d_\alpha(s)>c\). Đây là phản ví dụ thật: xem kiểm chứng bên dưới. ∎
+
+Kết luận cho report: **chứng minh được bằng lập luận** rằng H2 admissible (cả hai dạng) và rằng \(d_\alpha\) (giữ \(\infty\)) consistent. Hàm đang chạy trong A\* **không** consistent. Muốn tuyên bố "H2 consistent", phải sửa `__call__` để trả `distance` (giữ \(\infty\)) và để A\* không đưa vào frontier các state có \(h=\infty\).
+
+### Kiểm chứng thực nghiệm (2026-10-26)
+
+Chạy `python -m experiments.verify_heuristic` trên 120 case của `experiments/test_set.json`. Script duyệt toàn bộ concrete state đạt được (115.043 state, 379.858 cạnh `OK`), tính \(h^*\) chính xác bằng reverse Dijkstra từ mọi goal state, rồi kiểm tra từng state và từng cạnh. Kết quả lưu ở `experiments/heuristic_check.csv`:
+
+| Heuristic | \(h>h^*\) | \(h(s)>c+h(s')\) | \(h(\text{goal})\ne0\) |
+| --- | --- | --- | --- |
+| \(\tilde h\) (`H2`, hàm A\* dùng) | 0 | 84: GUI-015 (`level15`) 60, GUI-017 (`level17`) 24 | 0 |
+| \(h=d_\alpha\) (`H2_inf`) | 0 | 0 | 0 |
+| H1 | 0 | 21 (GUI-008/009/010/015/017) | 0 |
+
+Cả 84 vi phạm của \(\tilde h\) đều là cạnh **ghép khối** (split → merge) đi vào một pose ngõ cụt (`level15`: \((3,3)\) HORIZONTAL; `level17`: \((6,1)\) VERTICAL), đúng như dự đoán của Mệnh đề 3. Benchmark 120 case: total cost của A\* trùng UCS ở mọi case.
 
 ### Baseline H1
 
-`solvers/heuristics/h1.py`: \(h_1=\lceil \text{Manhattan(anchor, goal)}/2 \rceil\), và bằng 0 khi split. H1 chỉ dùng để so sánh với H2. Trên level có split switch, H1 **không được** dùng làm bằng chứng admissibility, vì teleport có thể đưa khối tới gần goal rẻ hơn khoảng cách Manhattan.
+`solvers/heuristics/h1.py`: \(h_1=\lceil \text{Manhattan(anchor, goal)}/2 \rceil\), và bằng 0 khi split. H1 chỉ dùng để so sánh với H2. Trên level có split switch, H1 **không được** dùng làm bằng chứng admissibility, vì teleport có thể đưa khối tới gần goal rẻ hơn khoảng cách Manhattan. Thực nghiệm trên 120 case không thấy vi phạm admissible, nhưng có 21 cạnh vi phạm consistent (đều ở level có split switch), nên H1 không consistent.
 
 ### Phần nên dùng / bỏ khi viết report
 

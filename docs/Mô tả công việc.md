@@ -57,9 +57,9 @@
 | Nhóm | Bàn giao | Trạng thái (xem `docs/status.md`) |
 | --- | --- | --- |
 | TV1 + TV2 | Engine với `get_initial_state`, `legal_actions`, `transition -> TransitionResult`, `is_goal`, `step_cost`, `get_heuristic_context`; loader `load_board`; 20 level JSON. | Đã có; chưa có bộ test tự động |
-| TV3 + TV4 | `solve_bfs`, `solve_dfs`, `solve_ucs`, `solve_astar` cùng trả `SearchResult` (path + search time, memory, expanded nodes, solution length, total cost, preprocessing time). | Đã có; H2 chưa xác nhận admissible/consistent |
+| TV3 + TV4 | `solve_bfs`, `solve_dfs`, `solve_ucs`, `solve_astar` cùng trả `SearchResult` (path + search time, memory, expanded nodes, solution length, total cost, preprocessing time). | Đã có; H2 admissible (lập luận + thực nghiệm), chưa consistent ở 2 level |
 | TV5 | GUI tải level, chơi thủ công, hiển thị đúng ok/fall/illegal, split/bridge, undo/restart, solve và replay qua API. | Đã tích hợp |
-| Lead | `python -m experiments.run_experiments` trên 20 level × 4 thuật toán. | Đã chạy 80/80 solved |
+| Lead | `python -m experiments.run_experiments` trên 120 case cố định (`experiments/test_set.json`) × 4 thuật toán. | Đã chạy 480/480 solved |
 
 Tiêu chí tích hợp chi tiết: `docs/gui_api.md` §8.
 
