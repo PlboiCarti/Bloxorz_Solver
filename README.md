@@ -9,7 +9,7 @@ phát lại lời giải.
 
 - `Engine` hỗ trợ core mechanics, fragile tiles, bridges, soft/heavy/split
   switches, split/merge, đổi khối điều khiển và kiểm tra thắng/thua.
-- GUI web dùng Three.js trong một file `gui/index.html`, được `server.py`
+- GUI web dùng Three.js trong một file `gui/index.html`, được `main.py`
   phục vụ cùng HTTP API và texture/model trong `assets/`.
 - Có 20 màn chơi GUI: `levels/level1.json` đến `levels/level20.json`.
 - BFS, DFS, UCS và A* dùng chung `Engine` và trả về `SearchResult` có metrics.
@@ -34,7 +34,7 @@ repository:
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python server.py
+python main.py
 ```
 
 Mở trình duyệt tại `http://127.0.0.1:8000`. Tài liệu API tự sinh của FastAPI có
@@ -75,7 +75,7 @@ solvers/                      # BFS, DFS, UCS, A* và SearchResult
 levels/                       # level1.json ... level20.json của GUI
 gui/index.html                # GUI Three.js (single file)
 assets/rollingcat/            # texture/model, phục vụ tại /assets/* (MIT)
-server.py                     # FastAPI app: API + GUI + assets
+main.py                      # FastAPI app: API + GUI + assets
 experiments/                  # benchmark trên bộ test cố định
   test_set.json               #   120 case: 100 bản đồ độc lập + 20 level GUI
   build_test_set.py           #   nhúng lại 20 level GUI vào test_set.json
@@ -91,7 +91,7 @@ docs/                         # API, GUI contract, status, báo cáo heuristic
 requirements.txt              # dependency runtime của server
 ```
 
-Entrypoint duy nhất của ứng dụng là `python server.py`.
+Entrypoint duy nhất của ứng dụng là `python main.py`.
 
 ## Level JSON
 
@@ -216,7 +216,7 @@ bảng chi tiết nằm trong [`experiments/README.md`](experiments/README.md).
 Giống smoke check của CI:
 
 ```powershell
-python -m compileall -q game solvers experiments server.py
+python -m compileall -q game solvers experiments main.py
 python -c "import game, solvers, server; print('Core imports OK')"
 python -m experiments.run_experiments --help
 ```

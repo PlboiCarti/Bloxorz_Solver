@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30
+
+- Đổi tên `server.py` thành `main.py` (entrypoint FastAPI, nội dung không đổi). Cập nhật `README.md`, `docs/Agents.md`, `docs/Mô tả công việc.md` và CI (`compileall`, import check; lệnh uvicorn đổi thành `main:app`). Các mục changelog cũ giữ nguyên tên `server.py` vì mô tả thời điểm đó.
+
 ## 2026-10-26
 
 - Rà soát tài liệu so với code và gộp các file `.md` trùng lặp: xoá `docs/API_CONTRACT.md` (bản sao cũ của `docs/gui_api.md`), gộp `docs/Hướng dẫn UI.md` vào `docs/gui_api.md`, gộp `docs/plan.md` vào phụ lục `docs/Mô tả công việc.md`, gộp `BENCHMARK_LEVELS.md` vào `experiments/README.md`. Rút gọn `Mô tả công việc.md` thành tài liệu phân công, trỏ sang `api.md`/`gui_api.md` thay vì chép lại API (bỏ cả ghi chú cũ `cost = 1`).

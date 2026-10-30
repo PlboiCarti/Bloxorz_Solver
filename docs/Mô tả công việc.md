@@ -14,7 +14,7 @@
 
 ```text
 ┌──────────────────┐      HTTP JSON       ┌───────────────────┐
-│ GUI · TV5        │ ───────────────────► │ server.py         │
+│ GUI · TV5        │ ───────────────────► │ main.py           │
 │ gui/index.html   │  GET  /levels        │ FastAPI adapter   │
 │ Three.js + input │  GET  /levels/{name} └───┬───────────┬───┘
 └────────▲─────────┘  POST /transition        │           │
@@ -30,7 +30,7 @@
 - **AI Solver** (`solvers/`) chỉ dùng Engine API: `successors`, `legal_actions`, `transition`,
   `is_goal`, `step_cost` và `get_heuristic_context` (cho H2). Solver không tự
   kiểm tra tile, switch hay bridge.
-- **GUI + Integration** (`gui/index.html`, `server.py`) gửi ý định người chơi qua
+- **GUI + Integration** (`gui/index.html`, `main.py`) gửi ý định người chơi qua
   HTTP, render state Engine trả về. Trình duyệt không import Python và không
   tự tính state. Solve: GUI gửi state hiện tại tới `/solve`, rồi phát lại từng
   action của `path` qua `/transition`.
@@ -47,7 +47,7 @@
 | TV2 — Advanced Mechanics | Fragile, bridge, soft/heavy/split switch, toggle/permanent bridge, split block, active cube, merge, validation metadata level. Mở rộng Engine của TV1, không tạo Engine riêng. | `game/`, `levels/` |
 | TV3 — BFS + DFS | Visited set, parent tracking, path reconstruction. | `solvers/bfs.py`, `solvers/dfs.py`, `solvers/base_solver.py` |
 | TV4 — UCS + A* | Priority queue, cost handling, heuristic H1/H2 và phân tích heuristic. | `solvers/ucs.py`, `solvers/astar.py`, `solvers/heuristics/` |
-| TV5 — GUI + Integration | Giao diện Three.js, input bàn phím/vuốt, animation, solve + replay, HTTP adapter. | `gui/index.html`, `server.py` |
+| TV5 — GUI + Integration | Giao diện Three.js, input bàn phím/vuốt, animation, solve + replay, HTTP adapter. | `gui/index.html`, `main.py` |
 | Lead | Benchmark, CI, report. | `experiments/`, `.github/` |
 
 ---
@@ -70,9 +70,9 @@ Tiêu chí tích hợp chi tiết: `docs/gui_api.md` §8.
 ```text
 Phím / vuốt → GUI ánh xạ thành "RIGHT"
 → PythonEngineAPI gửi POST /transition {level, state, action}
-→ server.py kiểm tra request, khôi phục State
+→ main.py kiểm tra request, khôi phục State
 → Engine.transition(state, Action.RIGHT)
-→ server.py trả TransitionResult JSON
+→ main.py trả TransitionResult JSON
 → GUI: ok → push history, nhận state mới, animate (isGoal → thắng)
         fall → giữ state, lăn tới fall_state rồi rơi, khóa ở trạng thái thua
         illegal → giữ state, báo hành động không hợp lệ
@@ -86,12 +86,12 @@ không giữ phiên chơi.
 ## 5. Nguyên tắc tích hợp
 
 1. Chỉ Engine chứa luật chơi và quyết định successor state.
-2. Trình duyệt chỉ gọi Python qua `PythonEngineAPI` → `server.py`.
+2. Trình duyệt chỉ gọi Python qua `PythonEngineAPI` → `main.py`.
 3. Đổi schema board/state/action phải đồng bộ Engine, server, GUI, `docs/api.md`
    và `docs/gui_api.md` trong cùng thay đổi.
 4. GUI chỉ commit state mới khi `status == ok`; `fall_state` chỉ dùng cho animation.
-5. Chạy GUI bằng `python server.py` (hoặc
-   `python -m uvicorn server:app --reload --host 127.0.0.1 --port 8000`); static
+5. Chạy GUI bằng `python main.py` (hoặc
+   `python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000`); static
    server như `python -m http.server` không có các route API.
 
 ---

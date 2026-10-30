@@ -9,7 +9,7 @@ game with a 3D graphical interface and search algorithms.
 - Frontend: Three.js and JavaScript.
 - Backend: Python game engine and search algorithms.
 - The GUI communicates with Python through a thin API adapter.
-- Python game code lives in `game/`; the HTTP adapter is `server.py`; the
+- Python game code lives in `game/`; the HTTP adapter is `main.py`; the
   browser GUI is `gui/index.html`; project guidance and API documents live in
   `docs/`.
 
@@ -55,7 +55,7 @@ couple rendering to HTTP details or duplicate backend rules in the UI.
 
 ### Current integration constraints
 
-- The browser calls Python only through the HTTP adapter in `server.py`.
+- The browser calls Python only through the HTTP adapter in `main.py`.
 - `game.State.occupied_cells()` is internal to Python. The server derives it
   when validating board bounds; the HTTP state does not carry this field.
 - The GUI places the ordinary block using `block_position` and `orientation`,
