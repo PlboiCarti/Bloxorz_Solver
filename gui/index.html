@@ -119,10 +119,6 @@
     .solver-table td { padding: 2px 3px; border-top: 1px solid #e8d99d88; font-weight: 800; }
     .solver-table td:last-child { text-align: right; }
     .solver-status { display: inline-block; padding: 2px 5px; border-radius: 8px; background: #eee2b5; color: #806a38; white-space: nowrap; }
-    .solver-metrics { margin-top: 6px; color: #5d4c24; font-size: 12px; line-height: 1.3; white-space: pre-line; }
-    .solver-metrics[data-solved="true"] { color: #176b37; }
-    .solver-metrics[data-solved="false"] { color: #a12f2f; }
-    .input-hud .solver-metrics { display: none; }
     .replay-controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 6px; }
     .replay-controls button { min-width: 0; min-height: 25px; padding: 1px; font-size: 9px; }
     .speed-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 5px; margin-top: 5px; color: #796334; font-size: 8px; font-weight: 750; }
@@ -150,7 +146,6 @@
 
     /* Keep every control visible in the panel without an inner scrollbar. */
     .input-hud > h2,
-    .input-hud > #solver-metrics,
     .input-hud > .replay-controls,
     .input-hud > .speed-row,
     .input-hud > .button-row:last-child {
@@ -162,7 +157,6 @@
     .input-hud .button-row { min-width: 0; gap: 6px; margin-top: 0; }
     .input-hud .button-row button { min-width: 0; min-height: 34px; padding: 3px 5px; }
     .input-hud .solver-actions #solve { min-height: 36px; }
-    .input-hud .solver-metrics,
     .input-hud .replay-controls,
     .input-hud .speed-row { margin-top: 0; }
 
@@ -178,7 +172,6 @@
       .input-hud .solver-actions #solve { min-height: 31px; font-size: 10px; }
       .replay-controls { gap: 3px; }
       .replay-controls button { min-height: 22px; }
-      .solver-metrics { font-size: 11px; line-height: 1.2; }
       .speed-row { gap: 4px; }
     }
     @media (max-height: 620px) and (min-width: 701px) {
@@ -280,7 +273,6 @@
           <button id="new-game">NEW GAME</button>
           <button id="undo" disabled>UNDO</button>
         </div>
-        <div id="solver-metrics" class="solver-metrics" aria-live="polite"></div>
         <div class="replay-controls" aria-label="Điều khiển phát lại lời giải">
           <button id="replay-first" disabled aria-label="Về đầu lời giải" title="Về đầu">⏮</button>
           <button id="replay-back" disabled aria-label="Lùi một bước" title="Lùi một bước">◀</button>
@@ -1680,10 +1672,6 @@
       updateControls();
       return false;
     }
-    if (!fromSolver) {
-      document.getElementById('solver-metrics').textContent = '';
-      document.getElementById('solver-metrics').removeAttribute('data-solved');
-    }
     if (response.status === 'fall') {
       controllerMode = fromSolver ? 'ERROR' : 'LOST';
       if (fromSolver) {
@@ -1814,8 +1802,6 @@
     const snapshot = history.pop();
     clearReplay();
     restoreSnapshot(snapshot);
-    document.getElementById('solver-metrics').textContent = '';
-    document.getElementById('solver-metrics').removeAttribute('data-solved');
   }
 
   async function startNewGame() {
@@ -1845,8 +1831,6 @@
       makeBlock(visualState);
       controllerMode = 'MANUAL_PLAY';
       busy = false;
-      document.getElementById('solver-metrics').textContent = '';
-      document.getElementById('solver-metrics').removeAttribute('data-solved');
       renderLevelTitle(currentLevel, result.board);
       renderStatus('Đã tải lại vị trí ban đầu.');
     } catch (error) {
@@ -1860,9 +1844,6 @@
     if (busy || !apiReady || !solverAvailable) return;
     stopReplayTimer();
     clearReplay();
-    const metrics = document.getElementById('solver-metrics');
-    metrics.textContent = '';
-    metrics.removeAttribute('data-solved');
     busy = true;
     controllerMode = 'SEARCHING';
     updateControls();
@@ -1889,15 +1870,6 @@
       return;
     }
     const algorithmLabel = algorithm === 'ASTAR' ? 'A*' : algorithm;
-    metrics.dataset.solved = String(result.solved);
-    const timingSummary = result.preprocessingTime > 0
-      ? `${result.preprocessingTime.toFixed(4)} s H2 + ${Number(result.searchTime).toFixed(4)} s tìm kiếm`
-      : `${Number(result.searchTime).toFixed(4)} s tìm kiếm`;
-    metrics.textContent =
-      `${algorithmLabel} · ${result.solved ? 'Có lời giải' : 'Không có lời giải'}\n`
-      + `${result.solutionLength} bước · cost ${result.totalCost}\n`
-      + `${timingSummary} · ${Number(result.memoryUsage).toFixed(2)} MB\n`
-      + `${Number(result.expandedNodes).toLocaleString()} nút đã mở rộng`;
     if (!result.solved) {
       clearReplay();
       controllerMode = 'MANUAL_PLAY';
@@ -1951,8 +1923,6 @@
       history = [];
       clearReplay();
       makeBlock(visualState);
-      document.getElementById('solver-metrics').textContent = '';
-      document.getElementById('solver-metrics').removeAttribute('data-solved');
       renderLevelTitle(level, game.board);
       controllerMode = 'MANUAL_PLAY';
       busy = false;
