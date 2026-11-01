@@ -1,13 +1,13 @@
 """HTTP adapter (FastAPI) cho Bloxorz — tầng tích hợp TV5/lead.
 
-Cung cấp 4 endpoint theo `docs/gui_api.md` §2.1:
+Cung cấp 4 endpoint:
     GET  /levels            -> danh sách file màn chơi nạp được
     GET  /levels/{name}     -> {"board": {...}, "initial_state": {...}}
     POST /transition        -> TransitionResult JSON
     POST /solve             -> SearchResult JSON
 
 Backend không trạng thái: mỗi request mang đầy đủ level + state. Mọi phản hồi lỗi
-là JSON theo hợp đồng `{"error": {"code", "message"}}` (§2.2).
+là JSON theo hợp đồng `{"error": {"code", "message"}}`.
 """
 
 from __future__ import annotations

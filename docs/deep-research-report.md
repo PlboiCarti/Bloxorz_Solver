@@ -24,7 +24,6 @@
    - lăn khi state nguồn đang nằm: `lie_roll = 1.0`;
    - di chuyển một cube khi split: `stand_roll = 1.5`, vì concrete split state luôn có `orientation = STANDING`;
    - `SWITCH_CUBE` (0.1): không có cạnh, vì abstract state không đổi khi đổi cube điều khiển (cặp cube không có thứ tự). Do đó \(h(s)=h(s')\le 0.1+h(s')\);
-   - `bridge_cross_penalty = 0.3` chưa được Engine dùng nên cũng không có trong H2.
 
    Tính cost cạnh theo orientation của state **nguồn** là cần thiết: nếu chỉ đếm số bước rồi nhân với \(\min(1.5, 1.0) = 1.0\) thì heuristic vẫn an toàn nhưng yếu hơn.
 2. **Kiến trúc.** Báo cáo dùng adapter cho các repo khác (`Problem.result()`, Erroler). Repo này không có các adapter đó. Solver không đọc `engine.board`; Engine cung cấp snapshot bất biến `HeuristicContext(support_cells, goal, split_switches, stand_roll, lie_roll)`. A* dựng H2 một lần cho mỗi level và báo thời gian dựng riêng trong `SearchResult.preprocessing_time`, đúng như gợi ý ở mục "Preprocessing có tính vào Search Time không?".

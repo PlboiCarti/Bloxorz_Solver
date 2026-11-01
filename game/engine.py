@@ -15,7 +15,7 @@ from game.tiles import support_failure
 
 
 class TransitionStatus(str, Enum):
-    """Kết quả của một bước chuyển trạng thái (theo `docs/gui_api.md` §3.3)."""
+    """Kết quả của một bước chuyển trạng thái."""
 
     OK = "ok"            # Bước đi hợp lệ, đã áp dụng
     FALL = "fall"        # Khối/khối lập phương rơi (VOID, ngoài biên, cầu đóng, fragile đứng)
@@ -134,7 +134,7 @@ class Engine:
 
         Trả về `TransitionResult` với `status` là OK/FALL/ILLEGAL kèm `reason` tương ứng.
 
-        Luồng (theo `docs/gui_api.md` §3.3): di chuyển -> kiểm tra nền dưới trạng thái
+        Luồng: di chuyển -> kiểm tra nền dưới trạng thái
         cầu hiện tại -> hiệu ứng ô (switch, cầu, split/merge) -> kiểm tra nền lần nữa.
         """
         if state.split_mode:

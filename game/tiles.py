@@ -18,7 +18,7 @@ def support_failure(
 ) -> str | None:
     """Trả về lý do rơi của các ô `cells`, hoặc None nếu mọi ô đều được nâng đỡ.
 
-    Lý do theo quy ước `docs/gui_api.md` §3.3: `off_board`, `void`, `bridge_closed`,
+    Các lý do: `off_board`, `void`, `bridge_closed`,
     `fragile_standing`. Thứ tự ưu tiên khi nhiều ô cùng lỗi:
     `off_board` -> `void` -> `bridge_closed` -> `fragile_standing`.
 

@@ -3,8 +3,9 @@
 > Tài liệu này chỉ mô tả **ai làm gì, bàn giao gì và các module nói chuyện với
 > nhau ra sao**. Chi tiết API không chép lại ở đây:
 >
-> - Contract Python (Engine, State, Board, `SearchResult`, cost): `docs/api.md`.
-> - Contract HTTP/GUI (endpoint, JSON, replay, phím điều khiển): `docs/gui_api.md`.
+> - Contract Python (Engine, State, Board, `SearchResult`, cost): xem docstring
+>   trong `game/` và `solvers/`.
+> - Contract HTTP/GUI (endpoint, JSON): xem `main.py` và `/docs` khi chạy server.
 >
 > Khi tài liệu khác với code, code là nguồn xác nhận.
 
@@ -54,14 +55,12 @@
 
 ## 3. Đầu ra bàn giao
 
-| Nhóm | Bàn giao | Trạng thái (xem `docs/status.md`) |
+| Nhóm | Bàn giao | Trạng thái |
 | --- | --- | --- |
 | TV1 + TV2 | Engine với `get_initial_state`, `legal_actions`, `successors`, `transition -> TransitionResult`, `is_goal`, `step_cost`, `get_heuristic_context`; loader `load_board`; 20 level JSON. | Đã có; chưa có bộ test tự động |
 | TV3 + TV4 | `solve_bfs`, `solve_dfs`, `solve_ucs`, `solve_astar` cùng trả `SearchResult` (path + search time, memory, expanded nodes, solution length, total cost, preprocessing time). | Đã có; H2 admissible và consistent (lập luận + thực nghiệm) |
 | TV5 | GUI tải level, chơi thủ công, hiển thị đúng ok/fall/illegal, split/bridge, undo/restart, solve và replay qua API. | Đã tích hợp |
 | Lead | `python -m experiments.run_experiments` trên 120 case cố định (`experiments/test_set.json`) × 4 thuật toán. | Đã chạy 480/480 solved |
-
-Tiêu chí tích hợp chi tiết: `docs/gui_api.md` §8.
 
 ---
 
@@ -87,8 +86,7 @@ không giữ phiên chơi.
 
 1. Chỉ Engine chứa luật chơi và quyết định successor state.
 2. Trình duyệt chỉ gọi Python qua `PythonEngineAPI` → `main.py`.
-3. Đổi schema board/state/action phải đồng bộ Engine, server, GUI, `docs/api.md`
-   và `docs/gui_api.md` trong cùng thay đổi.
+3. Đổi schema board/state/action phải đồng bộ Engine, `main.py` và GUI trong cùng thay đổi.
 4. GUI chỉ commit state mới khi `status == ok`; `fall_state` chỉ dùng cho animation.
 5. Chạy GUI bằng `python main.py` (hoặc
    `python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000`); static
